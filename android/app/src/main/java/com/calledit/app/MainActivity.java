@@ -129,7 +129,6 @@ public class MainActivity extends ComponentActivity {
         }
 
         @Override
-        @RequiresApi(Build.VERSION_CODES.O)
         public boolean onRenderProcessGone(@NonNull WebView view, @NonNull RenderProcessGoneDetail detail) {
             if (view == webView) {
                 removeWebView();
@@ -207,7 +206,7 @@ public class MainActivity extends ComponentActivity {
         adView.setAdUnitId(BuildConfig.ADMOB_BANNER_ID);
         float density = getResources().getDisplayMetrics().density;
         int widthDp = (int) (getResources().getDisplayMetrics().widthPixels / density);
-        adView.setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp));
+        adView.setAdSize(AdSize.getLargeAnchoredAdaptiveBannerAdSize(this, widthDp));
         adBox.addView(adView);
         adView.loadAd(new AdRequest.Builder().build());
     }
