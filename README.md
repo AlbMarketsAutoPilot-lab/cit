@@ -32,8 +32,8 @@ Local D1 tables: `npx wrangler d1 execute called-it --local -c worker/wrangler.t
 - **Worker** (`worker.yml`): on merge to `main`. Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
   `FOOTBALL_DATA_KEY`, `ONESIGNAL_APP_ID`, `ONESIGNAL_API_KEY`.
 - **Web** (`pages.yml`): GitHub Pages at https://albmarketsautopilot-lab.github.io/cit/. Variable `API_BASE`.
-- **Android** (`android.yml`): test APK + release AAB as build artifacts. Variable `API_BASE`; secrets
-  `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ONESIGNAL_APP_ID`, signing `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
-  `KEY_ALIAS`, `KEY_PASSWORD`. Without AdMob IDs the app shows Google's test ads.
+- **Android** (`android.yml`): the test APK as a build artifact. Variable `API_BASE`; secrets `ADMOB_APP_ID`,
+  `ADMOB_BANNER_ID`, `ONESIGNAL_APP_ID`. Without AdMob IDs the app shows Google's test ads. The release AAB is
+  built and signed by the owner in Android Studio (as KAJ); no signing key on GitHub.
 
 Match data: [football-data.org](https://www.football-data.org).

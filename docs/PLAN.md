@@ -6,6 +6,22 @@ A free football prediction game for groups of friends. Pick 1 / X / 2 / 1X / X2 
 and upcoming matches, optionally call the exact score, beat your friends on the group table.
 No money, no prizes, no odds. English, for football fans worldwide.
 
+## Status table
+
+Every session reads `CLAUDE.md`, then this table, and works on the first task that is not done.
+
+| # | Task | Effort | Status |
+|---|---|---|---|
+| 1 | Scoring + tests (`shared/scoring.ts`) | high | ✅ done |
+| 2 | Worker API, jobs, D1 tables (database `called-it` created) | high | ✅ done |
+| 3 | Web app (Matches, Groups, Me) | medium | ✅ done |
+| 4 | Android project (KAJ wrapper + AdMob + OneSignal), workflows | medium | ✅ done |
+| 5 | Working rules (`CLAUDE.md`), Android signing as in KAJ | low | ✅ done (pull request) |
+| 6 | Owner setup, one step at a time: GitHub secrets, Pages, merge, `API_BASE` | low | next |
+| 7 | First live import checked; web version checked | medium | — |
+| 8 | Owner's phone test (APK from GitHub Actions) | medium | — |
+| 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
+
 ---
 
 ## 1. Fixed decisions
@@ -16,7 +32,7 @@ No money, no prizes, no odds. English, for football fans worldwide.
 | Match data | football-data.org v4, free tier (12 competitions, 10 calls/min). Key lives only in Cloudflare secrets. |
 | Backend | One Cloudflare Worker (API + 2 cron jobs) + one D1 database. Free plan only, no card on file. |
 | App | One web page (TypeScript → single `called-it.html`) |
-| Android | Same WebView wrapper as `kaj-game` + `INTERNET` + share bridge + **AdMob** banner (top, with Google UMP consent) + **OneSignal** push. Release AAB ≈ 6 MB (the ad and push SDKs are most of it). |
+| Android | Same WebView wrapper as `kaj-game` + `INTERNET` + share bridge + **AdMob** banner (top, with Google UMP consent) + **OneSignal** push. Upright only, Android 8.0+. Release AAB ≈ 6 MB (the ad and push SDKs are most of it). The owner builds and signs the release in Android Studio (as KAJ); GitHub Actions builds only the test APK. |
 | Web | Same page on GitHub Pages, so iPhone friends can play in the browser |
 | Accounts | Nickname + secret device key + recovery code. No email, no Google sign-in, no third-party auth. |
 | Third parties | GitHub, Cloudflare, football-data.org, Google AdMob (ads), OneSignal (push). Nothing else. |
@@ -243,8 +259,7 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 3. Cloudflare: create an API token (Workers Scripts: Edit, D1: Edit) and note the Account ID.
    D1 database `called-it` already exists (id in `worker/wrangler.toml`) with its tables.
 4. GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `FOOTBALL_DATA_KEY`,
-   `ONESIGNAL_APP_ID`, `ONESIGNAL_API_KEY`, `ADMOB_APP_ID`, `ADMOB_BANNER_ID`,
-   and for a signed AAB: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+   `ONESIGNAL_APP_ID`, `ONESIGNAL_API_KEY`, `ADMOB_APP_ID`, `ADMOB_BANNER_ID`. No signing key on GitHub.
 5. GitHub variable `API_BASE` = the Worker address printed by the first Worker deploy
    (`https://called-it.<your-subdomain>.workers.dev`).
 6. Enable GitHub Pages (source: GitHub Actions).
@@ -259,4 +274,5 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | Date | Decision |
 |---|---|
 | 2026-10-25 | Plan frozen as v1.0 (name, stack, rules, limits, cleanup tiers). |
+| 2026-10-25 | Owner approved: app ID `com.calledit.app`, upright only, Android 8.0+, ad banner on top, no club crests, reminder 11:00 local, nicknames 3–16 letters/numbers/_, groups ≤ 50 players and ≤ 30 per player, the icon (`docs/store/`). Database `called-it` and branch kept. `CLAUDE.md` rules. Android as in KAJ: signing in Android Studio, no secrets for it on GitHub, Gradle 8.11.1. |
 | 2026-10-25 | v1.1 (owner): English only, worldwide; add OneSignal push and AdMob ads; repo is `cit`. Build: predictions keyed (match, user); one group call; memory cache; tier 3 simplified; no crests. |

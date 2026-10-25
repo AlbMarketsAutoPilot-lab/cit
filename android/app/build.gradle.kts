@@ -4,7 +4,6 @@ plugins {
 
 // IDs come from the environment (GitHub secrets). Without them: Google's public AdMob test IDs, no push.
 fun env(name: String, fallback: String = ""): String = System.getenv(name)?.takeIf { it.isNotBlank() } ?: fallback
-val keystore = System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotBlank() && file(it).exists() }
 
 android {
     namespace = "com.calledit.app"
@@ -14,7 +13,7 @@ android {
         applicationId = "com.calledit.app"
         minSdk = 26 // Android 8.0
         targetSdk = 36
-        versionCode = env("VERSION_CODE", "1").toInt()
+        versionCode = 1
         versionName = "1.0.0"
         manifestPlaceholders["admobAppId"] = env("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"${env("ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/9214589741")}\"")
@@ -25,23 +24,11 @@ android {
         buildConfig = true
     }
 
-    signingConfigs {
-        if (keystore != null) {
-            create("release") {
-                storeFile = file(keystore)
-                storePassword = env("KEYSTORE_PASSWORD")
-                keyAlias = env("KEY_ALIAS")
-                keyPassword = env("KEY_PASSWORD")
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (keystore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 
