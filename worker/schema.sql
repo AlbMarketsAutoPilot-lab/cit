@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 CREATE INDEX IF NOT EXISTS matches_kickoff ON matches (kickoff);
 
+-- League position and points per game, refreshed by the daily job; team = the name used in matches.
+CREATE TABLE IF NOT EXISTS team_stats (
+  comp TEXT NOT NULL,
+  team TEXT NOT NULL,
+  pos INTEGER NOT NULL,
+  ppg REAL NOT NULL,
+  PRIMARY KEY (comp, team)
+) WITHOUT ROWID;
+
 -- Keyed by match first: settlement and the group reveal read one match's picks in a range.
 CREATE TABLE IF NOT EXISTS predictions (
   match_id INTEGER NOT NULL,

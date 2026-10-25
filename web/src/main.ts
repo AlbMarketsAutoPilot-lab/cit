@@ -58,6 +58,8 @@ const state = {
   loadedAt: 0,
   tab: 'matches' as Tab,
   day: '',
+  comp: '', // '' = all competitions
+  team: '', // team search; searches all days
   drafts: new Map<number, Draft>(),
   group: null as GroupData | null,
   period: 'week' as Period,
@@ -332,19 +334,47 @@ function matchesView(): string {
   const chips = days
     .map((d) => `<button class="chip ${d === state.day ? 'on' : ''}" data-act="day" data-v="${d}">${esc(dayLabel(d))}</button>`)
     .join('');
-  const list = home.matches.filter((m) => localDay(m.kickoff) === state.day);
-  let html = `<div class="chips">${chips}</div>
-    <button class="link rules" data-act="modal" data-v="rules">How points work</button>`;
-  if (!list.length) return html + '<p class="empty">No matches on this day. Try another day.</p>';
-  let comp = '';
+  const comps = Object.keys(COMPS).filter((c) => home.matches.some((m) => m.comp === c));
+  if (!comps.includes(state.comp)) state.comp = '';
+  const compChip = (c: string, label: string) =>
+    `<button class="chip ${state.comp === c ? 'on' : ''}" data-act="comp" data-v="${c}">${esc(label)}</button>`;
+  return `<input class="search" type="search" data-filter="team" placeholder="Search team" maxlength="30" autocomplete="off" value="${esc(state.team)}">
+    <div class="chips" ${state.team ? 'hidden' : ''}>${chips}</div>
+    ${comps.length > 1 ? `<div class="chips">${compChip('', 'All')}${comps.map((c) => compChip(c, COMPS[c])).join('')}</div>` : ''}
+    <button class="link rules" data-act="modal" data-v="rules">How points work</button>
+    <div id="mlist">${matchList()}</div>`;
+}
+
+// The list alone, so typing in the team search re-renders it without dropping focus.
+function matchList(): string {
+  const q = state.team.trim().toLowerCase();
+  const list = state.home!.matches.filter(
+    (m) =>
+      (!state.comp || m.comp === state.comp) &&
+      (q ? m.home.toLowerCase().includes(q) || m.away.toLowerCase().includes(q) : localDay(m.kickoff) === state.day),
+  );
+  if (!list.length) return `<p class="empty">${q ? 'No matches for this team in the next days.' : 'No matches on this day. Try another day.'}</p>`;
+  let html = '';
+  let head = '';
   for (const m of list) {
-    if (m.comp !== comp) {
-      comp = m.comp;
-      html += `<h3 class="comp">${esc(COMPS[m.comp] ?? m.comp)}</h3>`;
+    const h = (q ? `${dayLabel(localDay(m.kickoff))} · ` : '') + (COMPS[m.comp] ?? m.comp);
+    if (h !== head) {
+      head = h;
+      html += `<h3 class="comp">${esc(h)}</h3>`;
     }
     html += matchCard(m);
   }
   return html;
+}
+
+function ordinal(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th';
+  return `${n}${s}`;
+}
+
+// "3rd · 2.1 pts/game" under a team name, once the daily job has the league table.
+function standing(pos: number | null | undefined, ppg: number | null | undefined): string {
+  return pos && ppg !== null && ppg !== undefined ? `<small class="tbl">${ordinal(pos)} · ${ppg.toFixed(1)} pts/game</small>` : '';
 }
 
 function matchCard(m: Match): string {
@@ -366,7 +396,7 @@ function matchCard(m: Match): string {
     : `<div class="result">${saved ? `You: <b>${esc(saved.pick)}</b>${saved.sh !== null ? ` · ${saved.sh}–${saved.sa}` : ''}` : 'No pick'}
        <span class="res ${res.cls}">${esc(res.text)}</span></div>`;
   return `<article class="match ${open ? '' : 'locked'} ${state.drafts.has(m.id) ? 'dirty' : ''}">
-    <div class="teams"><span class="home">${esc(m.home)}</span><span class="st">${esc(statusText(m))}</span><span class="away">${esc(m.away)}</span></div>
+    <div class="teams"><span class="home">${esc(m.home)}${standing(m.hpos, m.hppg)}</span><span class="st">${esc(statusText(m))}</span><span class="away">${esc(m.away)}${standing(m.apos, m.appg)}</span></div>
     <div class="picks">${buttons}</div>${foot}</article>`;
 }
 
@@ -503,6 +533,9 @@ async function act(el: HTMLElement): Promise<void> {
     case 'day':
       state.day = v;
       break;
+    case 'comp':
+      state.comp = v;
+      break;
     case 'pick': {
       const m = Number(el.dataset.m);
       state.drafts.set(m, { ...current(m), pick: v as Pick });
@@ -578,6 +611,12 @@ document.addEventListener('click', (ev) => {
 
 document.addEventListener('input', (ev) => {
   const el = ev.target as HTMLInputElement;
+  if (el.dataset.filter === 'team') {
+    state.team = el.value;
+    document.getElementById('mlist')!.innerHTML = matchList();
+    el.parentElement?.querySelector<HTMLElement>('.chips')?.toggleAttribute('hidden', !!state.team.trim());
+    return;
+  }
   if (!el.dataset.side) return;
   const m = Number(el.dataset.m);
   const raw = el.value.trim();

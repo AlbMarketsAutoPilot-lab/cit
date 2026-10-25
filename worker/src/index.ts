@@ -126,7 +126,13 @@ async function home(env: Env, me: User) {
   const matches = await cached(`matches:${bucket}`, 300_000, async () => {
     const t = bucket * 300_000;
     return (
-      await env.DB.prepare(`SELECT ${MATCH_COLS} FROM matches WHERE kickoff >= ?1 AND kickoff < ?2 ORDER BY kickoff, comp, id`)
+      await env.DB.prepare(
+        `SELECT ${MATCH_COLS.replace(/(^|,\s*)(\w+)/g, '$1m.$2')}, ts1.pos AS hpos, ts1.ppg AS hppg, ts2.pos AS apos, ts2.ppg AS appg
+         FROM matches m
+         LEFT JOIN team_stats ts1 ON ts1.comp = m.comp AND ts1.team = m.home
+         LEFT JOIN team_stats ts2 ON ts2.comp = m.comp AND ts2.team = m.away
+         WHERE m.kickoff >= ?1 AND m.kickoff < ?2 ORDER BY m.kickoff, m.comp, m.id`,
+      )
         .bind(t - 2 * DAY, t + 8 * DAY)
         .all<{ id: number }>()
     ).results;
