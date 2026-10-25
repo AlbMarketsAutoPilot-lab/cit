@@ -25,7 +25,7 @@ interface FdMatch {
   score: { duration?: string; fullTime?: FdGoals; regularTime?: FdGoals };
 }
 interface FdStandings {
-  standings?: { type: string; table: { team: { id: number }; playedGames: number; points: number }[] }[];
+  standings?: { type: string; table: { position: number; team: FdTeam; playedGames: number; points: number }[] }[];
 }
 
 export interface MatchRow {
@@ -216,9 +216,12 @@ async function importWeek(env: Env, now: number): Promise<void> {
         .all<{ id: number }>()
     ).results.map((r) => r.id),
   );
-  // Standings only for competitions with new matches; ≤ 8 calls keeps us under 10 calls/minute.
-  const comps = [...new Set(list.filter((m) => !known.has(m.id)).map((m) => m.competition.code))].slice(0, 8);
+  // Standings: competitions with new matches first (their points need them), then the others for the
+  // position line. ≤ 8 calls keeps us under 10 calls/minute.
+  const fresh = list.filter((m) => !known.has(m.id)).map((m) => m.competition.code);
+  const comps = [...new Set([...fresh, ...list.map((m) => m.competition.code)])].slice(0, 8);
   const ppg = new Map<string, number>();
+  const stats: { comp: string; team: string; pos: number; ppg: number }[] = [];
   for (const c of comps) {
     try {
       const s = await fd<FdStandings>(env, `/competitions/${c}/standings`);
@@ -226,6 +229,10 @@ async function importWeek(env: Env, now: number): Promise<void> {
         if (st.type !== 'TOTAL') continue;
         for (const row of st.table ?? []) {
           if (row.playedGames >= 5) ppg.set(`${c}:${row.team.id}`, row.points / row.playedGames);
+          const team = row.team.shortName || row.team.name;
+          if (team && row.playedGames > 0 && row.position > 0) {
+            stats.push({ comp: c, team, pos: row.position, ppg: row.points / row.playedGames });
+          }
         }
       }
     } catch (e) {
@@ -233,6 +240,16 @@ async function importWeek(env: Env, now: number): Promise<void> {
     }
   }
   await upsertMatches(env, list, ppg);
+  if (stats.length) {
+    await env.DB.prepare(
+      `INSERT INTO team_stats (comp, team, pos, ppg)
+       SELECT json_extract(value, '$.comp'), json_extract(value, '$.team'), json_extract(value, '$.pos'), json_extract(value, '$.ppg')
+       FROM json_each(?1) WHERE true
+       ON CONFLICT (comp, team) DO UPDATE SET pos = excluded.pos, ppg = excluded.ppg`,
+    )
+      .bind(JSON.stringify(stats))
+      .run();
+  }
   await env.DB.prepare(`INSERT OR REPLACE INTO meta (k, v) VALUES ('last_import', ?1)`).bind(new Date(now).toISOString()).run();
 }
 

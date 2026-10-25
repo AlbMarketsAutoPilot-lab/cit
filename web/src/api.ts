@@ -24,6 +24,11 @@ export interface Match {
   hx2: number;
   h12: number;
   settled: number;
+  // League position and points per game (null until the daily job has the table).
+  hpos?: number | null;
+  hppg?: number | null;
+  apos?: number | null;
+  appg?: number | null;
 }
 
 export interface SavedPick {
