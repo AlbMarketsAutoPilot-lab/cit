@@ -1,9 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
 
-// IDs come from the environment (GitHub secrets). Without them: Google's public AdMob test IDs, no push.
-fun env(name: String, fallback: String = ""): String = System.getenv(name)?.takeIf { it.isNotBlank() } ?: fallback
+// IDs come from the environment (GitHub secrets), else from android/local.properties on the owner's PC
+// (git-ignored; release builds in Android Studio). Without either: Google's public AdMob test IDs, no push.
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun env(name: String, fallback: String = ""): String =
+    System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: localProps.getProperty(name)?.trim()?.takeIf { it.isNotBlank() }
+        ?: fallback
 
 android {
     namespace = "com.calledit.app"

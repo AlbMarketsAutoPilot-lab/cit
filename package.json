@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
     "test": "node --test \"tests/**/*.test.ts\"",
     "build": "node scripts/build-web.ts",
-    "android:assets": "npm run build && node scripts/android-assets.ts",
+    "android:assets": "node scripts/build-web.ts --live && node scripts/android-assets.ts",
     "worker:dev": "wrangler dev -c worker/wrangler.toml --test-scheduled",
     "worker:deploy": "wrangler deploy -c worker/wrangler.toml"
   },

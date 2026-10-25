@@ -17,8 +17,8 @@ Every session reads `CLAUDE.md`, then this table, and works on the first task th
 | 3 | Web app (Matches, Groups, Me) | medium | ✅ done |
 | 4 | Android project (KAJ wrapper + AdMob + OneSignal), workflows | medium | ✅ done |
 | 5 | Working rules (`CLAUDE.md`), Android signing as in KAJ | low | ✅ done (pull request) |
-| 6 | Owner setup, one step at a time: GitHub secrets, Pages, merge, `API_BASE` | low | next |
-| 7 | First live import checked; web version checked | medium | — |
+| 6 | Owner setup, one step at a time: GitHub secrets, Pages, merge, `API_BASE` | low | ✅ done |
+| 7 | First live import checked; web version checked | medium | next |
 | 8 | Owner's phone test (APK from GitHub Actions) | medium | — |
 | 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
 
@@ -276,3 +276,4 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-10-25 | Plan frozen as v1.0 (name, stack, rules, limits, cleanup tiers). |
 | 2026-10-25 | Owner approved: app ID `com.calledit.app`, upright only, Android 8.0+, ad banner on top, no club crests, reminder 11:00 local, nicknames 3–16 letters/numbers/_, groups ≤ 50 players and ≤ 30 per player, the icon (`docs/store/`). Database `called-it` and branch kept. `CLAUDE.md` rules. Android as in KAJ: signing in Android Studio, no secrets for it on GitHub, Gradle 8.11.1. |
 | 2026-10-25 | v1.1 (owner): English only, worldwide; add OneSignal push and AdMob ads; repo is `cit`. Build: predictions keyed (match, user); one group call; memory cache; tier 3 simplified; no crests. |
+| 2026-10-25 | Task 6 (owner): `API_BASE` = `https://called-it.lodovikmirdita.workers.dev`, set before the merge. Real AdMob IDs also in test builds (never tap own ads). Local release build reads `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ONESIGNAL_APP_ID` from git-ignored `android/local.properties`; `npm run android:assets` uses the live Worker. |
