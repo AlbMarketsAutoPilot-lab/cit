@@ -68,7 +68,9 @@ const state = {
   busy: false,
   welcome: 'start' as 'start' | 'recover',
   pendingJoin: '',
+  slow: false, // first load took > 10 s or failed: show "Try again"
 };
+let slowTimer = 0;
 
 const app = document.getElementById('app')!;
 
@@ -182,13 +184,30 @@ function matchDays(): string[] {
 async function start(): Promise<void> {
   if (!signedIn()) return render();
   bridge?.login(state.auth!.id);
+  clearTimeout(slowTimer);
+  slowTimer = window.setTimeout(() => {
+    state.slow = true;
+    if (!state.home) render();
+  }, 10_000);
+  if (!state.home) render(); // the spinner, at once
   try {
     await loadHome();
     if (state.pendingJoin) await joinGroup(state.pendingJoin);
   } catch (e) {
+    state.slow = true;
     return fail(e);
+  } finally {
+    clearTimeout(slowTimer);
   }
+  state.slow = false;
   render();
+}
+
+// Shown until the first match list arrives; offers "Try again" on a slow or failed connection.
+function loadingView(): string {
+  return state.slow
+    ? `<div class="loading"><p>Slow connection. Check your internet.</p><button class="primary" data-act="retry">Try again</button></div>`
+    : '<div class="loading"><span class="spin"></span><p>Loading matches…</p></div>';
 }
 
 // ---------- actions ----------
@@ -320,7 +339,7 @@ function welcome(): string {
 }
 
 function shell(): string {
-  const body = !state.home ? '<p class="empty">Loading…</p>' : state.tab === 'matches' ? matchesView() : state.tab === 'groups' ? groupsView() : meView();
+  const body = !state.home ? loadingView() : state.tab === 'matches' ? matchesView() : state.tab === 'groups' ? groupsView() : meView();
   const tab = (t: Tab, label: string) => `<button class="${state.tab === t ? 'on' : ''}" data-act="tab" data-v="${t}">${label}</button>`;
   return `<header class="top"><span class="logo small">Called It!</span>
       <span class="pts">${state.home ? `${formatHalves(state.home.me.total)} pts` : ''}</span></header>
@@ -469,7 +488,7 @@ function meView(): string {
           })
           .join('')
       : '<li class="empty">No picks in the last 30 days.</li>'
-    : '<li class="empty">Loading…</li>';
+    : '<li class="empty"><span class="spin small"></span> Loading…</li>';
   return `<h2>${esc(h.me.nick)}</h2>
     <div class="stats"><div><b>${formatHalves(h.me.total)}</b><small>points</small></div><div><b>${h.me.exact}</b><small>exact scores</small></div></div>
     <h3>Last 30 days</h3><ul class="history">${rows}</ul>
@@ -536,6 +555,11 @@ async function act(el: HTMLElement): Promise<void> {
     case 'comp':
       state.comp = v;
       break;
+    case 'retry':
+      state.slow = false;
+      render();
+      await start();
+      return;
     case 'pick': {
       const m = Number(el.dataset.m);
       state.drafts.set(m, { ...current(m), pick: v as Pick });

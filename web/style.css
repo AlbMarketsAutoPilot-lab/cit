@@ -25,6 +25,12 @@ h2 { margin: 8px 0 12px; font-size: 22px; }
 h3 { margin: 20px 0 8px; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 small { color: var(--muted); }
 .empty { color: var(--muted); text-align: center; padding: 24px 8px; }
+.loading { color: var(--muted); text-align: center; padding: 64px 16px; display: grid; gap: 16px; justify-items: center; }
+.spin { display: inline-block; width: 32px; height: 32px; border: 3px solid var(--line); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+.spin.small { width: 16px; height: 16px; border-width: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
 .small { font-size: 13px; color: var(--muted); }
 
 .logo { font-weight: 900; font-style: italic; letter-spacing: -.02em; color: var(--accent); margin: 0; }
