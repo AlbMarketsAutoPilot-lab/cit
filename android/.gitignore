@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+# Copied from dist/index.html by: npm run android:assets
+app/src/main/assets/

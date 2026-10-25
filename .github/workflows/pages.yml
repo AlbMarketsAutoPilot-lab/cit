@@ -1,0 +1,43 @@
+name: Web
+
+# Publishes the web version + privacy and delete-account pages after each merge to main.
+# App:      https://albmarketsautopilot-lab.github.io/cit/
+# Privacy:  https://albmarketsautopilot-lab.github.io/cit/privacy.html
+# Deletion: https://albmarketsautopilot-lab.github.io/cit/delete-account.html
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          API_BASE: ${{ vars.API_BASE }}
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v5
