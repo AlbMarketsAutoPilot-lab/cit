@@ -1,12 +1,15 @@
 // Builds dist/: index.html (the whole app in one file, also used by Android), privacy and delete-account pages.
-// API_BASE = the Worker address. Required in CI; defaults to the local `wrangler dev` address.
+// API_BASE = the Worker address. With --live (npm run android:assets) it defaults to the live Worker;
+// otherwise it is required in CI and defaults to the local `wrangler dev` address.
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const read = (p: string) => readFileSync(new URL(p, root), 'utf8');
-const apiBase = (process.env.API_BASE ?? '').replace(/\/+$/, '') || (process.env.CI ? '' : 'http://localhost:8787');
+const LIVE_API = 'https://called-it.lodovikmirdita.workers.dev';
+const fallback = process.argv.includes('--live') ? LIVE_API : process.env.CI ? '' : 'http://localhost:8787';
+const apiBase = (process.env.API_BASE ?? '').replace(/\/+$/, '') || fallback;
 if (!apiBase) throw new Error('Set API_BASE (repository variable) to the Worker address, e.g. https://called-it.<name>.workers.dev');
 const webUrl = process.env.WEB_URL ?? 'https://albmarketsautopilot-lab.github.io/cit/';
 
