@@ -1,0 +1,26 @@
+{
+  "name": "called-it",
+  "version": "1.0.0",
+  "description": "Called It! — free football prediction game for groups of friends (web + Android)",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "build": "node scripts/build-web.ts",
+    "android:assets": "npm run build && node scripts/android-assets.ts",
+    "worker:dev": "wrangler dev -c worker/wrangler.toml --test-scheduled",
+    "worker:deploy": "wrangler deploy -c worker/wrangler.toml"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261025.1",
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "wrangler": "4.152.0"
+  }
+}

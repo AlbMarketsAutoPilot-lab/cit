@@ -1,0 +1,45 @@
+name: Android
+
+# Test APK only (as KAJ): the owner builds and signs the release in Android Studio. Needs the variable API_BASE.
+# Optional secrets: ADMOB_APP_ID, ADMOB_BANNER_ID, ONESIGNAL_APP_ID (without them: AdMob test ads, no push).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      API_BASE: ${{ vars.API_BASE }}
+      ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+      ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
+      ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build the app page into the Android project
+        run: npm run android:assets
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+      - name: Build the test APK
+        run: gradle -p android assembleDebug
+      - uses: actions/upload-artifact@v7
+        with:
+          name: called-it-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

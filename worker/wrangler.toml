@@ -1,0 +1,18 @@
+name = "called-it"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "called-it"
+database_id = "76b04ebe-8043-428a-866c-937df76f9dac"
+
+# PLAN §3: hourly results + settlement, daily import + cleanup.
+[triggers]
+crons = ["15 * * * *", "40 3 * * *"]
+
+[vars]
+ONESIGNAL_SEGMENT = "Total Subscriptions"
+
+# Secrets (set by .github/workflows/worker.yml): FOOTBALL_DATA_KEY, ONESIGNAL_APP_ID, ONESIGNAL_API_KEY
