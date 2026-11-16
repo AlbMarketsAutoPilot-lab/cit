@@ -165,6 +165,37 @@ public class MainActivity extends ComponentActivity {
             if (pushOn()) runOnUiThread(() -> OneSignal.getNotifications().requestPermission(true, Continue.none()));
         }
 
+        // Settings > Match reminders: "on" only with Android permission and the OneSignal opt-in.
+        @JavascriptInterface
+        public String pushState() {
+            if (!pushOn()) return "none";
+            return OneSignal.getNotifications().getPermission()
+                    && OneSignal.getUser().getPushSubscription().getOptedIn() ? "on" : "off";
+        }
+
+        // Off: opt out (permission kept). On: ask for permission first (opens the app's settings if
+        // Android no longer shows the prompt), then opt in. The page is told when it has changed.
+        @JavascriptInterface
+        public void setPush(boolean on) {
+            if (!pushOn()) return;
+            runOnUiThread(() -> {
+                if (!on) {
+                    OneSignal.getUser().getPushSubscription().optOut();
+                    pushChanged();
+                } else if (OneSignal.getNotifications().getPermission()) {
+                    OneSignal.getUser().getPushSubscription().optIn();
+                    pushChanged();
+                } else {
+                    OneSignal.getNotifications().requestPermission(true, Continue.with(r -> {
+                        if (r.isSuccess() && Boolean.TRUE.equals(r.getData())) {
+                            OneSignal.getUser().getPushSubscription().optIn();
+                        }
+                        pushChanged();
+                    }));
+                }
+            });
+        }
+
         @JavascriptInterface
         public boolean hasPrivacy() {
             return consent != null && consent.getPrivacyOptionsRequirementStatus()
@@ -176,6 +207,11 @@ public class MainActivity extends ComponentActivity {
             runOnUiThread(() -> UserMessagingPlatform.showPrivacyOptionsForm(MainActivity.this, error -> {
             }));
         }
+    }
+
+    // Re-draws the reminder switch (web/src/main.ts window.citPush).
+    private void pushChanged() {
+        if (webView != null) webView.evaluateJavascript("window.citPush && window.citPush()", null);
     }
 
     private static boolean pushOn() {
@@ -229,6 +265,7 @@ public class MainActivity extends ComponentActivity {
     protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
+        pushChanged(); // back from the phone's notification settings
         if (adView != null) adView.resume();
     }
 
