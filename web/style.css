@@ -47,7 +47,7 @@ small { color: var(--muted); }
 .top .logo.small { font-size: 22px; }
 .pts { font-weight: 700; color: var(--gold); }
 .content { max-width: 640px; margin: 0 auto; padding: 8px 12px 150px; }
-.tabs { position: fixed; bottom: 0; left: 0; right: 0; z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr);
+.tabs { position: fixed; bottom: 0; left: 0; right: 0; z-index: 6; display: grid; grid-template-columns: 1fr 1fr 1fr 64px;
   background: #0e1813; border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
 .tabs button { border: 0; background: none; color: var(--muted); font-weight: 600; }
 .tabs button.on { color: var(--accent); }
@@ -117,6 +117,13 @@ small { color: var(--muted); }
 .stats b { display: block; font-size: 28px; color: var(--gold); }
 .menu { display: grid; gap: 8px; margin-top: 24px; }
 .menu button { text-align: left; padding: 14px; }
+.tabs .gear { vertical-align: middle; }
+.menu .switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.menu .switch small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.switch i { flex: none; width: 44px; height: 26px; border-radius: 13px; background: var(--muted); position: relative; transition: background .2s; }
+.switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; }
+.switch[aria-checked="true"] i { background: var(--accent); }
+.switch[aria-checked="true"] i::after { left: 21px; }
 
 .modal { display: none; position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .6); align-items: flex-end; justify-content: center; }
 .modal.show { display: flex; }

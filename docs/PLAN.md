@@ -10,6 +10,9 @@ No money, no prizes, no odds. English, for football fans worldwide.
 
 Every session reads `CLAUDE.md`, then this table, and works on the first task that is not done.
 
+**The app is not published yet** (owner, 2026-11-16): only test builds exist, not on the Play Store. Every user
+will be new at the Play release, so nothing needs to stay compatible with older app versions.
+
 | # | Task | Effort | Status |
 |---|---|---|---|
 | 1 | Scoring + tests (`shared/scoring.ts`) | high | ✅ done |
@@ -20,8 +23,12 @@ Every session reads `CLAUDE.md`, then this table, and works on the first task th
 | 6 | Owner setup, one step at a time: GitHub secrets, Pages, merge, `API_BASE` | low | ✅ done |
 | 7 | First live import checked; web version checked | medium | ✅ done (owner) |
 | 7b | Match filter (competition, team search) + league position line | medium | ✅ done (pull request) |
-| 8 | Owner's phone test (APK from GitHub Actions) | medium | next |
+| 8 | Owner's phone test (APK from GitHub Actions) | medium | ✅ done (owner) |
 | 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
+| 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (permission asked at first open), © Connect AL in About | medium | ✅ done (pull request) |
+| 10C | Groups: one competition or all, optional end date, admin concludes, podium | high | next |
+| 10B | Me: statistics and charts | medium | — |
+| 10D | Team crests on matches, competition emblems | medium | — |
 
 ---
 
@@ -207,8 +214,8 @@ Safety net: D1 Time Travel (free, last 7 days) can restore the database to any m
 4. **Group** — board (Week / Month / All time); per match after kickoff: how everyone picked (reveal).
 5. **Me** — history with points, total, recovery code, delete account, About (data: football-data.org).
 
-Language: English (worldwide audience). Team names as football-data.org gives them; no club crests
-(trademark risk on Play).
+Language: English (worldwide audience). Team names as football-data.org gives them; team crests and competition emblems
+from football-data.org (owner decision 2026-11-16, replaces "no club crests").
 
 **Push (OneSignal):** the daily job sends one reminder on days with matches, delivered at 11:00 in each
 user's own time zone. The app links the device to the user id (`OneSignal.login`) for targeted pushes later.
@@ -283,3 +290,5 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-10-25 | v1.1 (owner): English only, worldwide; add OneSignal push and AdMob ads; repo is `cit`. Build: predictions keyed (match, user); one group call; memory cache; tier 3 simplified; no crests. |
 | 2026-10-25 | Task 6 (owner): `API_BASE` = `https://called-it.lodovikmirdita.workers.dev`, set before the merge. Real AdMob IDs also in test builds (never tap own ads). Local release build reads `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ONESIGNAL_APP_ID` from git-ignored `android/local.properties`; `npm run android:assets` uses the live Worker. |
 | 2026-10-25 | Task 7 (owner): first import and web version checked by the owner. 7b approved: competition filter, team search, "3rd · 2.1 pts/game" from the daily standings (`team_stats`; daily job fetches up to 8 tables: competitions with new matches first). No betting odds (paid add-on, ties the app to betting) and no news feed (licence risk with ads). |
+| 2026-11-16 | Owner approved v1.2: Settings tab (gear) with a working Match reminders switch (10A); groups for one competition or all, only that competition's picks count, optional end date, admin concludes, podium (10C); Me statistics and charts (10B); team crests and competition emblems (10D): **replaces the 2026-10-25 "no club crests" decision**, owner checked Play. Order A → C → B → D. |
+| 2026-11-16 | Owner: the app is not published yet (test builds only). Notification permission is asked at the first app open; allowing it turns Match reminders on, and the switch in Settings turns it off. About: © 2026 Connect AL. |

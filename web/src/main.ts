@@ -1,4 +1,4 @@
-// Called It! app: one page, three tabs (Matches, Groups, Me). PLAN §7.
+// Called It! app: one page, three tabs (Matches, Groups, Me) plus Settings (gear). PLAN §7.
 import { EXACT_BONUS, formatHalves, isPick, score, validScore, type Pick, type PointsTable } from '../../shared/scoring.ts';
 import {
   api,
@@ -22,6 +22,8 @@ interface Bridge {
   login(id: string): void;
   logout(): void;
   push(): void;
+  pushState?(): string; // 'on' | 'off' | 'none' (no push in this build)
+  setPush?(on: boolean): void;
   hasPrivacy(): boolean;
   privacy(): void;
 }
@@ -44,7 +46,7 @@ const COMPS: Record<string, string> = {
 };
 const PICK_ORDER: Pick[] = ['1', 'X', '2', '1X', 'X2', '12'];
 
-type Tab = 'matches' | 'groups' | 'me';
+type Tab = 'matches' | 'groups' | 'me' | 'settings';
 type Period = 'week' | 'month' | 'total';
 interface Draft {
   pick: Pick | null;
@@ -250,12 +252,6 @@ async function savePicks(): Promise<void> {
   }).length;
   state.drafts.clear();
   toast(missed ? `Saved. ${missed} could not change (started or edit limit).` : 'Picks saved. Good luck!');
-  try {
-    if (bridge && !localStorage.getItem('calledit.pushAsked')) {
-      localStorage.setItem('calledit.pushAsked', '1');
-      bridge.push();
-    }
-  } catch {}
 }
 
 async function openGroup(id: string): Promise<void> {
@@ -339,12 +335,14 @@ function welcome(): string {
 }
 
 function shell(): string {
-  const body = !state.home ? loadingView() : state.tab === 'matches' ? matchesView() : state.tab === 'groups' ? groupsView() : meView();
-  const tab = (t: Tab, label: string) => `<button class="${state.tab === t ? 'on' : ''}" data-act="tab" data-v="${t}">${label}</button>`;
+  const views: Record<Tab, () => string> = { matches: matchesView, groups: groupsView, me: meView, settings: settingsView };
+  const body = !state.home ? loadingView() : views[state.tab]();
+  const tab = (t: Tab, label: string, aria = '') =>
+    `<button class="${state.tab === t ? 'on' : ''}" data-act="tab" data-v="${t}"${aria ? ` aria-label="${aria}"` : ''}>${label}</button>`;
   return `<header class="top"><span class="logo small">Called It!</span>
       <span class="pts">${state.home ? `${formatHalves(state.home.me.total)} pts` : ''}</span></header>
     <main class="content">${body}</main>
-    <nav class="tabs">${tab('matches', 'Matches')}${tab('groups', 'Groups')}${tab('me', 'Me')}</nav>`;
+    <nav class="tabs">${tab('matches', 'Matches')}${tab('groups', 'Groups')}${tab('me', 'Me')}${tab('settings', GEAR, 'Settings')}</nav>`;
 }
 
 function matchesView(): string {
@@ -491,9 +489,27 @@ function meView(): string {
     : '<li class="empty"><span class="spin small"></span> Loading…</li>';
   return `<h2>${esc(h.me.nick)}</h2>
     <div class="stats"><div><b>${formatHalves(h.me.total)}</b><small>points</small></div><div><b>${h.me.exact}</b><small>exact scores</small></div></div>
-    <h3>Last 30 days</h3><ul class="history">${rows}</ul>
+    <h3>Last 30 days</h3><ul class="history">${rows}</ul>`;
+}
+
+const GEAR =
+  '<svg class="gear" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12.9 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>';
+
+// The daily reminder is one push from the Worker (jobs.ts remind); this switch opts the phone in or out.
+function pushState(): string {
+  return bridge?.pushState ? bridge.pushState() : 'none';
+}
+
+function settingsView(): string {
+  const push = pushState();
+  const reminders =
+    push === 'none'
+      ? ''
+      : `<button class="switch" role="switch" aria-checked="${push === 'on'}" data-act="setpush" data-v="${push === 'on' ? 'off' : 'on'}">
+          <span>Match reminders<small>A daily push at 11:00 on days with matches</small></span><i></i></button>`;
+  return `<h2>Settings</h2>
     <div class="menu">
-      ${bridge ? '<button data-act="push">Match reminders</button>' : ''}
+      ${reminders}
       ${state.auth?.recovery ? '<button data-act="modal" data-v="recovery">Recovery code</button>' : ''}
       <button data-act="modal" data-v="rules">How points work</button>
       ${bridge?.hasPrivacy() ? '<button data-act="adprivacy">Ad privacy settings</button>' : ''}
@@ -523,7 +539,8 @@ function modalView(): string {
     case 'about':
       return `<div class="sheet"><h2>Called It!</h2>
         <p>A free football prediction game for friends. No real money, no bets, no prizes.</p>
-        <p>Football data provided by football-data.org.</p>${close}</div>`;
+        <p>Football data provided by football-data.org.</p>
+        <p class="small">© 2026 Connect AL. All rights reserved.</p>${close}</div>`;
     case 'delete':
       return `<div class="sheet"><h2>Delete account?</h2>
         <p>Your nickname, picks, points and group memberships are deleted for good.</p>
@@ -604,6 +621,9 @@ async function act(el: HTMLElement): Promise<void> {
     case 'push':
       bridge?.push();
       return;
+    case 'setpush':
+      bridge?.setPush?.(v === 'on');
+      break;
     case 'adprivacy':
       bridge?.privacy();
       return;
@@ -690,6 +710,11 @@ document.addEventListener('submit', (ev) => {
 });
 
 // Android back button (MainActivity): close what is open; false lets the app close.
+// Android calls this when the push permission or opt-in may have changed (MainActivity.pushChanged).
+(window as unknown as { citPush: () => void }).citPush = () => {
+  if (signedIn() && state.tab === 'settings' && !state.modal) render();
+};
+
 (window as unknown as { citBack: () => boolean }).citBack = () => {
   if (state.modal) state.modal = '';
   else if (state.group) state.group = null;
@@ -708,4 +733,11 @@ document.addEventListener('visibilitychange', () => {
 const join = new URLSearchParams(location.search).get('join');
 if (join) state.pendingJoin = join.toUpperCase().replace(/[^A-Z0-9]/g, '');
 if (state.auth && !signedIn()) state.welcome = 'recover';
+// Android asks for notification permission once, the first time the app opens; Settings can turn it off later.
+try {
+  if (bridge && !localStorage.getItem('calledit.pushAsked')) {
+    localStorage.setItem('calledit.pushAsked', '1');
+    bridge.push();
+  }
+} catch {}
 start();
