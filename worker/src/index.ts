@@ -1,7 +1,9 @@
 // Called It! API (PLAN §5). Bearer auth with a random key per device; no cookies, so CORS is open.
-import { isGoals, isPick, monthStart, validScore, weekStart } from '../../shared/scoring.ts';
+import { NEW_ADMIN_SQL } from '../../shared/groups.ts';
+import { dayOf, isGoals, isPick, validScore } from '../../shared/scoring.ts';
 import { DAY, type Env } from './env.ts';
-import { daily, hourly } from './jobs.ts';
+import { COMPETITIONS, daily, hourly } from './jobs.ts';
+import { concludeRound, roundTable } from './rounds.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -156,7 +158,7 @@ async function home(env: Env, me: User) {
 async function myGroups(env: Env, me: User) {
   return (
     await env.DB.prepare(
-      `SELECT g.id, g.name, g.code, (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id) AS n
+      `SELECT g.id, g.name, g.code, g.comp, g.done, (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id) AS n
        FROM members mb JOIN groups g ON g.id = mb.group_id WHERE mb.user_id = ?1 ORDER BY g.name`,
     )
       .bind(me.id)
@@ -226,6 +228,8 @@ async function deleteMe(env: Env, me: User) {
     db.prepare(`DELETE FROM predictions WHERE match_id IN (SELECT id FROM matches) AND user_id = ?1`).bind(me.id),
     db.prepare(`DELETE FROM members WHERE user_id = ?1`).bind(me.id),
     db.prepare(`DELETE FROM daily_points WHERE user_id = ?1`).bind(me.id),
+    db.prepare(`DELETE FROM comp_points WHERE user_id = ?1`).bind(me.id),
+    db.prepare(`DELETE FROM group_results WHERE user_id = ?1`).bind(me.id),
     db.prepare(`DELETE FROM users WHERE id = ?1`).bind(me.id),
     db
       .prepare(
@@ -233,6 +237,7 @@ async function deleteMe(env: Env, me: User) {
          AND NOT EXISTS (SELECT 1 FROM members WHERE group_id = groups.id)`,
       )
       .bind(JSON.stringify(groups)),
+    db.prepare(`${NEW_ADMIN_SQL} AND groups.id IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(groups)),
   ]);
   return { ok: true };
 }
@@ -245,6 +250,8 @@ async function joinedCount(env: Env, me: User): Promise<number> {
 async function createGroup(env: Env, me: User, b: Record<string, unknown>) {
   const name = String(b.name ?? '').trim().replace(/\s+/g, ' ');
   if (name.length < 1 || name.length > 30) throw new HttpError(400, 'Group name: 1–30 characters.');
+  const comp = String(b.comp ?? '');
+  if (!COMPETITIONS.includes(comp)) throw new HttpError(400, 'Choose a competition.');
   const owned = await env.DB.prepare('SELECT COUNT(*) AS n FROM groups WHERE owner_id = ?1').bind(me.id).first<{ n: number }>();
   if ((owned?.n ?? 0) >= 10) throw new HttpError(400, 'You can create up to 10 groups.');
   if ((await joinedCount(env, me)) >= 30) throw new HttpError(400, 'You can be in up to 30 groups.');
@@ -254,16 +261,12 @@ async function createGroup(env: Env, me: User, b: Record<string, unknown>) {
     const code = rand(6, UPPER);
     try {
       await env.DB.batch([
-        env.DB.prepare('INSERT INTO groups (id, name, code, owner_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5)').bind(
-          id,
-          name,
-          code,
-          me.id,
-          now,
-        ),
+        env.DB.prepare(
+          'INSERT INTO groups (id, name, code, owner_id, created_at, comp, started) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?5)',
+        ).bind(id, name, code, me.id, now, comp),
         env.DB.prepare('INSERT INTO members (group_id, user_id, joined_at) VALUES (?1, ?2, ?3)').bind(id, me.id, now),
       ]);
-      return { group: { id, name, code, n: 1 } };
+      return { group: { id, name, code, comp, done: 0, n: 1 } };
     } catch (e) {
       if (attempt >= 2 || !/UNIQUE/i.test(String(e))) throw e;
     }
@@ -273,68 +276,133 @@ async function createGroup(env: Env, me: User, b: Record<string, unknown>) {
 async function joinGroup(env: Env, me: User, b: Record<string, unknown>) {
   const code = cleanCode(b.code);
   const g = await env.DB.prepare(
-    `SELECT g.id, g.name, g.code, (SELECT COUNT(*) FROM members WHERE group_id = g.id) AS n,
+    `SELECT g.id, g.name, g.code, g.comp, g.done, (SELECT COUNT(*) FROM members WHERE group_id = g.id) AS n,
        EXISTS (SELECT 1 FROM members WHERE group_id = g.id AND user_id = ?2) AS mine
      FROM groups AS g WHERE g.code = ?1`,
   )
     .bind(code, me.id)
-    .first<{ id: string; name: string; code: string; n: number; mine: number }>();
+    .first<{ id: string; name: string; code: string; comp: string; done: number; n: number; mine: number }>();
   if (!g) throw new HttpError(404, 'No group with that code.');
-  if (g.mine) return { group: { id: g.id, name: g.name, code: g.code, n: g.n } };
+  const info = { id: g.id, name: g.name, code: g.code, comp: g.comp, done: g.done };
+  if (g.mine) return { group: { ...info, n: g.n } };
   if (g.n >= 50) throw new HttpError(400, 'This group is full (50 players).');
   if ((await joinedCount(env, me)) >= 30) throw new HttpError(400, 'You can be in up to 30 groups.');
   await env.DB.prepare('INSERT OR IGNORE INTO members (group_id, user_id, joined_at) VALUES (?1, ?2, ?3)')
     .bind(g.id, me.id, Date.now())
     .run();
-  return { group: { id: g.id, name: g.name, code: g.code, n: g.n + 1 } };
+  return { group: { ...info, n: g.n + 1 } };
 }
 
 async function leaveGroup(env: Env, me: User, id: string) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM members WHERE group_id = ?1 AND user_id = ?2').bind(id, me.id),
     env.DB.prepare('DELETE FROM groups WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM members WHERE group_id = ?1)').bind(id),
+    env.DB.prepare('DELETE FROM group_results WHERE group_id = ?1 AND NOT EXISTS (SELECT 1 FROM groups WHERE id = ?1)').bind(id),
+    env.DB.prepare(`${NEW_ADMIN_SQL} AND groups.id = ?1`).bind(id),
   ]);
   return { ok: true };
 }
 
-// One call per group screen: boards for all periods + everyone's picks on matches that have started.
-async function group(env: Env, me: User, id: string) {
+interface GroupRow {
+  id: string;
+  name: string;
+  code: string;
+  owner_id: string;
+  comp: string;
+  round: number;
+  started: number;
+  done: number;
+  end_day: string | null;
+  n: number;
+  mine: number;
+  sv: string;
+}
+
+async function loadGroup(env: Env, me: User, id: string): Promise<GroupRow> {
   const g = await env.DB.prepare(
-    `SELECT g.id, g.name, g.code, (SELECT COUNT(*) FROM members WHERE group_id = g.id) AS n,
+    `SELECT g.id, g.name, g.code, g.owner_id, g.comp, g.round, g.started, g.done, g.end_day,
+       (SELECT COUNT(*) FROM members WHERE group_id = g.id) AS n,
        EXISTS (SELECT 1 FROM members WHERE group_id = g.id AND user_id = ?2) AS mine,
        (SELECT v FROM meta WHERE k = 'settle_version') AS sv
      FROM groups AS g WHERE g.id = ?1`,
   )
     .bind(id, me.id)
-    .first<{ id: string; name: string; code: string; n: number; mine: number; sv: string }>();
+    .first<GroupRow>();
   if (!g || !g.mine) throw new HttpError(404, 'Group not found.');
+  return g;
+}
+
+// One call per group screen: the round table (or the frozen final table) + everyone's picks on this
+// competition's matches that have started.
+async function group(env: Env, me: User, id: string) {
+  const g = await loadGroup(env, me, id);
   const bucket = Math.floor(Date.now() / 300_000);
-  const data = await cached(`group:${id}:${g.n}:${g.sv}:${bucket}`, 300_000, async () => {
+  const data = await cached(`group:${id}:${g.n}:${g.sv}:${g.round}:${g.done}:${bucket}`, 300_000, async () => {
     const now = bucket * 300_000;
-    const board = (
-      await env.DB.prepare(
-        `SELECT u.id, u.nick, u.total_h AS total, u.exact_n AS exact,
-           COALESCE((SELECT SUM(h) FROM daily_points WHERE user_id = u.id AND day >= ?2), 0) AS week,
-           COALESCE((SELECT SUM(h) FROM daily_points WHERE user_id = u.id AND day >= ?3), 0) AS month
-         FROM members AS mb JOIN users AS u ON u.id = mb.user_id WHERE mb.group_id = ?1`,
-      )
-        .bind(id, weekStart(now), monthStart(now))
-        .all()
-    ).results;
+    const board = g.done
+      ? (
+          await env.DB.prepare(
+            `SELECT u.id, u.nick, r.h AS total, r.exact, 0 AS week, 0 AS month
+             FROM group_results AS r JOIN users AS u ON u.id = r.user_id WHERE r.group_id = ?1`,
+          )
+            .bind(id)
+            .all()
+        ).results
+      : await roundTable(env.DB, g, dayOf(now), now);
     const reveal = (
       await env.DB.prepare(
         `SELECT p.match_id AS m, u.nick, p.pick, p.sh, p.sa
          FROM members AS mb JOIN users AS u ON u.id = mb.user_id
          JOIN predictions AS p ON p.user_id = mb.user_id
-           AND p.match_id IN (SELECT id FROM matches WHERE kickoff <= ?2 AND kickoff >= ?3)
+           AND p.match_id IN (SELECT id FROM matches WHERE kickoff <= ?2 AND kickoff >= ?3 AND comp = ?4)
          WHERE mb.group_id = ?1`,
       )
-        .bind(id, Date.now(), Date.now() - 2 * DAY)
+        .bind(id, Date.now(), Date.now() - 2 * DAY, g.comp)
         .all()
     ).results;
     return { board, reveal };
   });
-  return { group: { id: g.id, name: g.name, code: g.code, n: g.n }, ...data };
+  return {
+    group: {
+      id: g.id,
+      name: g.name,
+      code: g.code,
+      n: g.n,
+      comp: g.comp,
+      round: g.round,
+      started: g.started,
+      done: g.done,
+      end_day: g.end_day,
+      admin: g.owner_id === me.id,
+    },
+    ...data,
+  };
+}
+
+// Admin: end the running round now. Points up to today count; matches not settled yet do not.
+async function concludeGroup(env: Env, me: User, id: string) {
+  const g = await loadGroup(env, me, id);
+  if (g.owner_id !== me.id) throw new HttpError(403, 'Only the group admin can do this.');
+  if (!g.done) {
+    const now = Date.now();
+    await concludeRound(env.DB, g, dayOf(now), now);
+  }
+  return group(env, me, id);
+}
+
+// Admin: start the next round after a conclusion. Same members and competition, new table from tomorrow.
+async function newRound(env: Env, me: User, id: string) {
+  const g = await loadGroup(env, me, id);
+  if (g.owner_id !== me.id) throw new HttpError(403, 'Only the group admin can do this.');
+  if (g.done) {
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM group_results WHERE group_id = ?1').bind(id),
+      env.DB.prepare(
+        'UPDATE groups SET round = round + 1, started = ?2, done = 0, end_day = NULL WHERE id = ?1 AND done != 0',
+      ).bind(id, Date.now()),
+    ]);
+  }
+  return group(env, me, id);
 }
 
 async function status(env: Env) {
@@ -357,9 +425,11 @@ async function route(req: Request, env: Env): Promise<Response> {
   if (method === 'DELETE' && path === '/v1/me') return json(await deleteMe(env, me));
   if (method === 'POST' && path === '/v1/groups') return json(await createGroup(env, me, await body(req)));
   if (method === 'POST' && path === '/v1/groups/join') return json(await joinGroup(env, me, await body(req)));
-  const g = /^\/v1\/groups\/([A-Za-z0-9]{12})(\/me)?$/.exec(path);
+  const g = /^\/v1\/groups\/([A-Za-z0-9]{12})(\/me|\/conclude|\/round)?$/.exec(path);
   if (g && method === 'GET' && !g[2]) return json(await group(env, me, g[1]));
-  if (g && method === 'DELETE' && g[2]) return json(await leaveGroup(env, me, g[1]));
+  if (g && method === 'DELETE' && g[2] === '/me') return json(await leaveGroup(env, me, g[1]));
+  if (g && method === 'POST' && g[2] === '/conclude') return json(await concludeGroup(env, me, g[1]));
+  if (g && method === 'POST' && g[2] === '/round') return json(await newRound(env, me, g[1]));
   throw new HttpError(404, 'Not found.');
 }
 

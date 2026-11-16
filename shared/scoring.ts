@@ -102,3 +102,56 @@ export function weekStart(ms: number): string {
 export function monthStart(ms: number): string {
   return dayOf(ms).slice(0, 8) + '01';
 }
+
+export interface SettleMatch {
+  id: number;
+  comp: string;
+  kickoff: number;
+  hg: number;
+  ag: number;
+  table: PointsTable;
+}
+
+export interface SettlePick {
+  match_id: number;
+  user_id: string;
+  pick: string;
+  sh: number | null;
+  sa: number | null;
+}
+
+export interface DaySum {
+  u: string;
+  d: string;
+  h: number;
+  e: number;
+}
+
+// Settlement totals (PLAN §4): per user per day (all competitions) and per user, competition and day
+// (group tables, task 10C). Zero rows are left out: tables treat a missing row as 0.
+export function settlementSums(
+  matches: SettleMatch[],
+  picks: SettlePick[],
+): { daily: DaySum[]; comp: (DaySum & { c: string })[] } {
+  const byId = new Map(matches.map((m) => [m.id, m]));
+  const daily = new Map<string, DaySum>();
+  const comp = new Map<string, DaySum & { c: string }>();
+  for (const p of picks) {
+    const m = byId.get(p.match_id);
+    if (!m || !isPick(p.pick)) continue;
+    const s = score(m.table, p.pick, p.sh, p.sa, m.hg, m.ag);
+    if (s.halves === 0) continue;
+    const d = dayOf(m.kickoff);
+    const e = s.exact ? 1 : 0;
+    const a = daily.get(`${p.user_id}|${d}`) ?? { u: p.user_id, d, h: 0, e: 0 };
+    a.h += s.halves;
+    a.e += e;
+    daily.set(`${p.user_id}|${d}`, a);
+    const k = `${p.user_id}|${m.comp}|${d}`;
+    const b = comp.get(k) ?? { u: p.user_id, c: m.comp, d, h: 0, e: 0 };
+    b.h += s.halves;
+    b.e += e;
+    comp.set(k, b);
+  }
+  return { daily: [...daily.values()], comp: [...comp.values()] };
+}

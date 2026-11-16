@@ -1,4 +1,5 @@
 // Called It! app: one page, three tabs (Matches, Groups, Me) plus Settings (gear). PLAN §7.
+import { rankTable } from '../../shared/groups.ts';
 import { EXACT_BONUS, formatHalves, isPick, score, validScore, type Pick, type PointsTable } from '../../shared/scoring.ts';
 import {
   api,
@@ -64,7 +65,7 @@ const state = {
   team: '', // team search; searches all days
   drafts: new Map<number, Draft>(),
   group: null as GroupData | null,
-  period: 'week' as Period,
+  period: 'total' as Period,
   history: null as HistoryRow[] | null,
   modal: '' as string,
   busy: false,
@@ -425,17 +426,33 @@ function groupsView(): string {
     ? groups
         .map(
           (x) =>
-            `<button class="row" data-act="group" data-v="${esc(x.id)}"><span>${esc(x.name)}</span><small>${x.n} ${x.n === 1 ? 'player' : 'players'}</small></button>`,
+            `<button class="row" data-act="group" data-v="${esc(x.id)}"><span>${esc(x.name)}<small class="sub">${esc(COMPS[x.comp] ?? x.comp)}${x.done ? ' · finished' : ''}</small></span><small>${x.n} ${x.n === 1 ? 'player' : 'players'}</small></button>`,
         )
         .join('')
     : '<p class="empty">No groups yet. Create one and invite your friends, or join with a code.</p>';
   return `<h2>Your groups</h2>${list}
-    <form data-form="create" class="inline"><input name="name" placeholder="New group name" maxlength="30" required><button class="primary">Create</button></form>
+    <form data-form="create" class="create">
+      <input name="name" placeholder="New group name" maxlength="30" required>
+      <select name="comp" required aria-label="Competition"><option value="">Competition…</option>${Object.entries(COMPS)
+        .map(([c, n]) => `<option value="${c}">${esc(n)}</option>`)
+        .join('')}</select>
+      <button class="primary">Create</button>
+    </form>
     <form data-form="join" class="inline"><input name="code" placeholder="Group code" maxlength="8" autocapitalize="characters" required><button>Join</button></form>`;
 }
 
 function groupView(g: GroupData): string {
   const me = state.home!.me.id;
+  const info = g.group;
+  const comp = COMPS[info.comp] ?? info.comp;
+  const head = `<button class="link" data-act="back">‹ All groups</button>
+    <h2>${esc(info.name)}</h2>
+    <p class="gsub">${esc(comp)} · Round ${info.round}${info.admin ? ' · you are the admin' : ''}</p>
+    <div class="code">Code <b>${esc(info.code)}</b> · ${info.n} ${info.n === 1 ? 'player' : 'players'}
+      <button class="primary" data-act="invite">Invite</button></div>`;
+  const leave = '<button class="link danger" data-act="modal" data-v="leave">Leave group</button>';
+  if (info.done) return head + podiumView(g, me) + leave;
+
   const key: Period = state.period;
   const rows = [...g.board].sort((a, b) => b[key] - a[key] || b.exact - a.exact || a.nick.localeCompare(b.nick));
   const seg = (p: Period, label: string) => `<button class="${key === p ? 'on' : ''}" data-act="period" data-v="${p}">${label}</button>`;
@@ -448,7 +465,9 @@ function groupView(g: GroupData): string {
       return `<tr class="${r.id === me ? 'me' : ''}"><td>${rank}</td><td>${esc(r.nick)}</td><td class="num">${formatHalves(r[key])}</td></tr>`;
     })
     .join('');
-  const started = state.home!.matches.filter((m) => m.kickoff <= Date.now()).sort((a, b) => b.kickoff - a.kickoff);
+  const started = state
+    .home!.matches.filter((m) => m.comp === info.comp && m.kickoff <= Date.now())
+    .sort((a, b) => b.kickoff - a.kickoff);
   const reveal = started
     .map((m) => {
       const picks = g.reveal.filter((p) => p.m === m.id);
@@ -462,15 +481,43 @@ function groupView(g: GroupData): string {
       return `<div class="reveal"><div class="rt">${esc(m.home)} <span>${esc(statusText(m))}</span> ${esc(m.away)}</div><ul>${items}</ul></div>`;
     })
     .join('');
-  return `<button class="link" data-act="back">‹ All groups</button>
-    <h2>${esc(g.group.name)}</h2>
-    <div class="code">Code <b>${esc(g.group.code)}</b> · ${g.group.n} ${g.group.n === 1 ? 'player' : 'players'}
-      <button class="primary" data-act="invite">Invite</button></div>
-    <div class="seg">${seg('week', 'This week')}${seg('month', 'This month')}${seg('total', 'All time')}</div>
+  return `${head}
+    <div class="seg">${seg('total', 'This round')}${seg('week', 'This week')}${seg('month', 'This month')}</div>
     <table class="board"><tbody>${board}</tbody></table>
+    <p class="note">Only ${esc(comp)} points count, from the day after the round started or you joined. The round ends with the season${info.admin ? ', or when you conclude it' : ' or when the admin concludes it'}.</p>
+    ${info.admin ? '<button class="conclude" data-act="modal" data-v="conclude">Conclude round now</button>' : ''}
     <h3>Picks revealed at kickoff</h3>
-    ${reveal || '<p class="empty">Picks appear here once a match starts.</p>'}
-    <button class="link danger" data-act="modal" data-v="leave">Leave group</button>`;
+    ${reveal || `<p class="empty">${esc(comp)} picks appear here once a match starts.</p>`}
+    ${leave}`;
+}
+
+// A concluded round: cup with the winner, then 2nd and 3rd, then the frozen final table.
+function podiumView(g: GroupData, me: string): string {
+  const ranked = rankTable(g.board);
+  const name = (i: number) => (ranked[i] ? esc(ranked[i].nick) : '—');
+  const pts = (i: number) => (ranked[i] ? `${formatHalves(ranked[i].total)} pts` : '');
+  const table = ranked
+    .map(
+      (r) =>
+        `<tr class="${r.id === me ? 'me' : ''}"><td>${r.rank}</td><td>${esc(r.nick)}</td><td class="num">${formatHalves(r.total)}</td></tr>`,
+    )
+    .join('');
+  const ended = g.group.end_day ? ` · counted until ${esc(g.group.end_day)}` : '';
+  return `<div class="podium">
+      <div class="cup" aria-hidden="true">🏆</div>
+      <div class="first">${name(0)}<small>${pts(0)}</small></div>
+      <div class="places">
+        <div><span>2nd</span>${name(1)}<small>${pts(1)}</small></div>
+        <div><span>3rd</span>${name(2)}<small>${pts(2)}</small></div>
+      </div>
+    </div>
+    <h3>Final table · Round ${g.group.round}${ended}</h3>
+    <table class="board"><tbody>${table}</tbody></table>
+    ${
+      g.group.admin
+        ? '<button class="primary wide" data-act="newround">Start a new round</button>'
+        : '<p class="note">Waiting for the admin to start a new round.</p>'
+    }`;
 }
 
 function meView(): string {
@@ -533,7 +580,8 @@ function modalView(): string {
         <p>Each button shows its points. Less likely results are worth more: an even match gives 2 for a single and 1 for a double; an underdog can give up to 5.</p>
         <p>Add the exact score for <b>+${EXACT_BONUS / 2}</b> if it is right. It must agree with your pick.</p>
         <p>Results count after 90 minutes plus stoppage time (no extra time or penalties). Cancelled matches are void.</p>
-        <p>You can change picks until kickoff. Your friends see your pick when the match starts.</p>${close}</div>`;
+        <p>You can change picks until kickoff. Your friends see your pick when the match starts.</p>
+        <p>Each group plays one competition. Its table counts only that competition's points, from the day after the round starts or you join. The round ends with the season, or earlier if the admin concludes it; then the podium shows the winner.</p>${close}</div>`;
     case 'privacy':
       return `<div class="sheet scroll">${PRIVACY_HTML}${close}</div>`;
     case 'about':
@@ -545,6 +593,10 @@ function modalView(): string {
       return `<div class="sheet"><h2>Delete account?</h2>
         <p>Your nickname, picks, points and group memberships are deleted for good.</p>
         <button class="danger" data-act="delete">Delete my account</button><button data-act="close">Cancel</button></div>`;
+    case 'conclude':
+      return `<div class="sheet"><h2>Conclude this round?</h2>
+        <p>The table is frozen now and the podium shows the winner. Matches not finished yet will not count.</p>
+        <button class="danger" data-act="conclude">Conclude round</button><button data-act="close">Cancel</button></div>`;
     case 'leave':
       return `<div class="sheet"><h2>Leave this group?</h2>
         <p>You can join again later with the code.</p>
@@ -603,6 +655,17 @@ async function act(el: HTMLElement): Promise<void> {
     case 'invite':
       if (state.group) invite(state.group.group.name, state.group.group.code);
       return;
+    case 'conclude':
+      if (state.group) state.group = await api<GroupData>(state.auth, 'POST', `/v1/groups/${state.group.group.id}/conclude`);
+      state.modal = '';
+      await loadHome();
+      break;
+    case 'newround':
+      if (state.group) state.group = await api<GroupData>(state.auth, 'POST', `/v1/groups/${state.group.group.id}/round`);
+      state.period = 'total';
+      toast('New round started. Points count from tomorrow.');
+      await loadHome();
+      break;
     case 'leave':
       if (state.group) await api(state.auth, 'DELETE', `/v1/groups/${state.group.group.id}/me`);
       state.group = null;
@@ -688,7 +751,10 @@ document.addEventListener('submit', (ev) => {
       case 'recover':
         return recoverAccount(val('nick'), val('recovery'));
       case 'create': {
-        const r = await api<{ group: { id: string } }>(state.auth, 'POST', '/v1/groups', { name: val('name') });
+        const r = await api<{ group: { id: string } }>(state.auth, 'POST', '/v1/groups', {
+          name: val('name'),
+          comp: val('comp'),
+        });
         await loadHome();
         await openGroup(r.group.id);
         return;
