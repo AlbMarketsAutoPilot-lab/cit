@@ -22,7 +22,7 @@ Every session reads `CLAUDE.md`, then this table, and works on the first task th
 | 7b | Match filter (competition, team search) + league position line | medium | ✅ done (pull request) |
 | 8 | Owner's phone test (APK from GitHub Actions) | medium | ✅ done (owner) |
 | 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
-| 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (OneSignal opt-in) | medium | ✅ done (pull request) |
+| 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (permission asked at first open), © Connect AL in About | medium | ✅ done (pull request) |
 | 10C | Groups: one competition or all, optional end date, admin concludes, podium | high | next |
 | 10B | Me: statistics and charts | medium | — |
 | 10D | Team crests on matches, competition emblems | medium | — |

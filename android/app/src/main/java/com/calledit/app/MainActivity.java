@@ -160,9 +160,10 @@ public class MainActivity extends ComponentActivity {
             if (pushOn()) OneSignal.logout();
         }
 
+        // The first-open prompt (web/src/main.ts). Allowing it turns the reminder switch on.
         @JavascriptInterface
         public void push() {
-            if (pushOn()) runOnUiThread(() -> OneSignal.getNotifications().requestPermission(true, Continue.none()));
+            if (pushOn()) runOnUiThread(() -> OneSignal.getNotifications().requestPermission(false, Continue.with(r -> pushChanged())));
         }
 
         // Settings > Match reminders: "on" only with Android permission and the OneSignal opt-in.

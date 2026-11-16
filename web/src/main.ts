@@ -252,12 +252,6 @@ async function savePicks(): Promise<void> {
   }).length;
   state.drafts.clear();
   toast(missed ? `Saved. ${missed} could not change (started or edit limit).` : 'Picks saved. Good luck!');
-  try {
-    if (bridge && !localStorage.getItem('calledit.pushAsked')) {
-      localStorage.setItem('calledit.pushAsked', '1');
-      bridge.push();
-    }
-  } catch {}
 }
 
 async function openGroup(id: string): Promise<void> {
@@ -545,7 +539,8 @@ function modalView(): string {
     case 'about':
       return `<div class="sheet"><h2>Called It!</h2>
         <p>A free football prediction game for friends. No real money, no bets, no prizes.</p>
-        <p>Football data provided by football-data.org.</p>${close}</div>`;
+        <p>Football data provided by football-data.org.</p>
+        <p class="small">© 2026 Connect AL. All rights reserved.</p>${close}</div>`;
     case 'delete':
       return `<div class="sheet"><h2>Delete account?</h2>
         <p>Your nickname, picks, points and group memberships are deleted for good.</p>
@@ -738,4 +733,11 @@ document.addEventListener('visibilitychange', () => {
 const join = new URLSearchParams(location.search).get('join');
 if (join) state.pendingJoin = join.toUpperCase().replace(/[^A-Z0-9]/g, '');
 if (state.auth && !signedIn()) state.welcome = 'recover';
+// Android asks for notification permission once, the first time the app opens; Settings can turn it off later.
+try {
+  if (bridge && !localStorage.getItem('calledit.pushAsked')) {
+    localStorage.setItem('calledit.pushAsked', '1');
+    bridge.push();
+  }
+} catch {}
 start();
