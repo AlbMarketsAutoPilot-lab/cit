@@ -10,6 +10,9 @@ No money, no prizes, no odds. English, for football fans worldwide.
 
 Every session reads `CLAUDE.md`, then this table, and works on the first task that is not done.
 
+**The app is not published yet** (owner, 2026-11-16): only test builds exist, not on the Play Store. Every user
+will be new at the Play release, so nothing needs to stay compatible with older app versions.
+
 | # | Task | Effort | Status |
 |---|---|---|---|
 | 1 | Scoring + tests (`shared/scoring.ts`) | high | ✅ done |
@@ -288,3 +291,4 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-10-25 | Task 6 (owner): `API_BASE` = `https://called-it.lodovikmirdita.workers.dev`, set before the merge. Real AdMob IDs also in test builds (never tap own ads). Local release build reads `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ONESIGNAL_APP_ID` from git-ignored `android/local.properties`; `npm run android:assets` uses the live Worker. |
 | 2026-10-25 | Task 7 (owner): first import and web version checked by the owner. 7b approved: competition filter, team search, "3rd · 2.1 pts/game" from the daily standings (`team_stats`; daily job fetches up to 8 tables: competitions with new matches first). No betting odds (paid add-on, ties the app to betting) and no news feed (licence risk with ads). |
 | 2026-11-16 | Owner approved v1.2: Settings tab (gear) with a working Match reminders switch (10A); groups for one competition or all, only that competition's picks count, optional end date, admin concludes, podium (10C); Me statistics and charts (10B); team crests and competition emblems (10D): **replaces the 2026-10-25 "no club crests" decision**, owner checked Play. Order A → C → B → D. |
+| 2026-11-16 | Owner: the app is not published yet (test builds only). Notification permission is asked at the first app open; allowing it turns Match reminders on, and the switch in Settings turns it off. About: © 2026 Connect AL. |
