@@ -226,6 +226,39 @@ Google UMP consent form for EEA/UK; "Ad privacy settings" in Me when required. W
 **Not in MVP (v1.1, in this order):** results push ("your points are in") · banker (one ×2 match per day) ·
 shareable daily recap image · per-group competition filter · streaks.
 
+### v1.2 approved details (owner, 2026-11-16)
+
+Everything the owner approved for tasks 10A–10D. A new session needs nothing else.
+
+**10A Settings (done, pull request #5).** A gear icon after Matches · Groups · Me opens Settings: Match reminders,
+Recovery code, How points work, Ad privacy settings (only when required), Privacy policy, About, Delete account.
+Match reminders is an On/Off switch (OneSignal opt-in / opt-out). Android asks for notification permission once,
+at the first app open; allowing it turns the switch on; the user can turn it off later in Settings.
+About ends with "© 2026 Connect AL. All rights reserved."
+
+**10B Me: statistics and charts.** Me shows how the user is doing, with clear, good-looking graphics:
+1. **Hit rate ring:** % of picks right.
+2. **Points over time:** a line of points per day or week.
+3. **Results bar:** exact / right / wrong.
+4. **By pick type:** hit rate for 1, X, 2, 1X, X2, 12.
+5. **By competition:** points and hit rate per competition.
+6. **Streaks:** current and best run of right picks.
+7. **Underdog calls:** right picks worth 3 points or more.
+8. **My groups:** the user's rank in each group.
+
+Charts are drawn by the page itself (SVG, no chart library), so the app stays small and the cost stays €0.
+Before building, check which items the stored data supports for how long: predictions and matches are deleted
+after 60 days (fewer at higher cleanup tiers, §6); `daily_points` and `comp_points` keep 400 days. Propose what
+each chart covers (for example "last 60 days") to the owner.
+
+**10C Groups (done, pull request #6):** see the decision log (2026-11-17) and §4, §5.
+
+**10D Team and competition icons.** Team crests on the match cards and competition emblems on the competition
+filter and group headers, from football-data.org (the owner checked Play; replaces "no club crests").
+Cost check (2026-11-16): €0 for Cloudflare, because the crest links are already stored in `matches`
+(`home_crest`, `away_crest`) and phones load the images straight from football-data.org; 9–32 KB per crest
+(measured), cached by the phone after the first view. Competition emblem links are not stored yet.
+
 ---
 
 ## 8. Repository layout
