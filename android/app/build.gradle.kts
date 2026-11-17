@@ -22,8 +22,8 @@ android {
         applicationId = "com.connectal.calledit" // Play id (owner 2026-11-17: com.calledit.app was taken). Code package stays com.calledit.app.
         minSdk = 26 // Android 8.0
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.2.0"
         manifestPlaceholders["admobAppId"] = env("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"${env("ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/9214589741")}\"")
         buildConfigField("String", "ONESIGNAL_APP_ID", "\"${env("ONESIGNAL_APP_ID")}\"")
