@@ -19,7 +19,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.calledit.app"
+        applicationId = "com.connectal.calledit" // Play id (owner 2026-11-17: com.calledit.app was taken). Code package stays com.calledit.app.
         minSdk = 26 // Android 8.0
         targetSdk = 36
         versionCode = 1

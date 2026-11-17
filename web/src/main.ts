@@ -32,7 +32,7 @@ interface Bridge {
 }
 const bridge = (window as unknown as { CalledIt?: Bridge }).CalledIt;
 
-const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.calledit.app';
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.connectal.calledit';
 const COMPS: Record<string, string> = {
   CL: 'Champions League',
   PL: 'Premier League',
