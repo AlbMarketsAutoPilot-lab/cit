@@ -4,6 +4,7 @@ name: Web
 # App:      https://albmarketsautopilot-lab.github.io/cit/
 # Privacy:  https://albmarketsautopilot-lab.github.io/cit/privacy.html
 # Deletion: https://albmarketsautopilot-lab.github.io/cit/delete-account.html
+# Terms:    https://albmarketsautopilot-lab.github.io/cit/terms.html
 on:
   push:
     branches: [main]
