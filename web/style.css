@@ -67,7 +67,16 @@ small { color: var(--muted); }
 .match { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin: 8px 0; }
 .match.dirty { border-color: var(--gold); }
 .teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; font-weight: 700; margin-bottom: 10px; }
-.teams .away { text-align: right; }
+.teams .home, .teams .away { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.teams .away { flex-direction: row-reverse; text-align: right; }
+.teams .nm { min-width: 0; overflow-wrap: anywhere; }
+.ico { flex: none; object-fit: contain; filter: drop-shadow(0 0 1px rgba(255, 255, 255, .55)); }  /* dark logos stay visible */
+.ico.crest { display: inline-block; width: 20px; height: 20px; }
+/* Emblems are made for light backgrounds: a small white tile keeps dark ones (Premier League) visible. */
+.ico.emb { width: 18px; height: 18px; padding: 1px; border-radius: 4px; background: #fff; filter: none; vertical-align: -4px; margin-right: 6px; }
+.ico.crest.gone { visibility: hidden; }
+.ico.emb.gone { display: none; }
+h3.comp { display: flex; align-items: center; }
 .teams .tbl { display: block; font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
 .search { width: 100%; margin-top: 8px; }
 .teams .st { font-size: 13px; color: var(--muted); font-weight: 600; text-align: center; }

@@ -3,6 +3,7 @@ import { dayOf, pointsTable, probabilities, settlementSums, type PointsTable } f
 import { DAY, type Env } from './env.ts';
 import { concludeDue } from './rounds.ts';
 import { NEW_ADMIN_SQL } from '../../shared/groups.ts';
+import { EMBLEMS_SQL, emblemsOf } from '../../shared/icons.ts';
 
 const API = 'https://api.football-data.org/v4';
 export const COMPETITIONS = ['CL', 'PL', 'ELC', 'PD', 'SA', 'BL1', 'FL1', 'DED', 'PPL', 'BSA', 'WC', 'EC'];
@@ -21,7 +22,7 @@ interface FdMatch {
   id: number;
   utcDate: string;
   status: string;
-  competition: { code: string };
+  competition: { code: string; emblem?: string | null };
   season?: FdSeason | null;
   homeTeam: FdTeam;
   awayTeam: FdTeam;
@@ -281,6 +282,8 @@ async function importWeek(env: Env, now: number): Promise<void> {
       .bind(JSON.stringify([...seasons.values()]))
       .run();
   }
+  const emblems = emblemsOf(list);
+  if (Object.keys(emblems).length) await env.DB.prepare(EMBLEMS_SQL).bind(JSON.stringify(emblems)).run();
   await env.DB.prepare(`INSERT OR REPLACE INTO meta (k, v) VALUES ('last_import', ?1)`).bind(new Date(now).toISOString()).run();
 }
 

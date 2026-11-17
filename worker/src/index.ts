@@ -1,5 +1,6 @@
 // Called It! API (PLAN §5). Bearer auth with a random key per device; no cookies, so CORS is open.
 import { NEW_ADMIN_SQL } from '../../shared/groups.ts';
+import { parseEmblems } from '../../shared/icons.ts';
 import { dayOf, isGoals, isPick, validScore } from '../../shared/scoring.ts';
 import { keepDays, lastMonths, monthSeries, pickStats, type StatPick } from '../../shared/stats.ts';
 import { DAY, type Env } from './env.ts';
@@ -140,6 +141,10 @@ async function home(env: Env, me: User) {
         .all<{ id: number }>()
     ).results;
   });
+  // Competition emblem links (task 10D): one meta row, cached like the match list.
+  const emblems = await cached(`emblems:${bucket}`, 300_000, async () =>
+    parseEmblems((await env.DB.prepare(`SELECT v FROM meta WHERE k = 'emblems'`).first<{ v: string }>())?.v),
+  );
   const picks = (
     await env.DB.prepare(
       `SELECT match_id AS m, pick, sh, sa FROM predictions WHERE user_id = ?1 AND match_id IN (SELECT value FROM json_each(?2))`,
@@ -151,6 +156,7 @@ async function home(env: Env, me: User) {
     now,
     me: { id: me.id, nick: me.nick, total: me.total_h, exact: me.exact_n },
     matches,
+    emblems,
     picks,
     groups: await myGroups(env, me),
   };
