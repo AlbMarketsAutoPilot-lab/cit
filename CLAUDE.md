@@ -23,6 +23,8 @@ These rules apply to every session and every task in this repository.
   owner approves ("approved"), and only within what was approved.
 - Push only after approval, then open a pull request; the owner merges.
 - If something was done without approval, say so plainly and offer to undo it.
+- Every approval is written into `docs/PLAN.md` (the details, not just a title) in the same commit as the work,
+  before the session ends. A new session must find everything there, never only in an old chat.
 
 ## 3. Budget (the owner is on a limited Claude plan)
 
