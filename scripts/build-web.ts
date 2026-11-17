@@ -35,5 +35,6 @@ const html = read('web/index.html')
 mkdirSync(new URL('dist/', root), { recursive: true });
 writeFileSync(new URL('dist/index.html', root), html);
 writeFileSync(new URL('dist/privacy.html', root), read('public/privacy.html'));
+writeFileSync(new URL('dist/terms.html', root), read('public/terms.html'));
 writeFileSync(new URL('dist/delete-account.html', root), read('public/delete-account.html').replace('/*API_BASE*/', apiBase));
 console.log(`dist/index.html ${(html.length / 1024).toFixed(1)} KB, API ${apiBase}`);
