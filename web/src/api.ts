@@ -119,3 +119,21 @@ export async function api<T>(auth: Auth | null, method: string, path: string, bo
   if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? 'Something went wrong.');
   return data as T;
 }
+
+// GET /v1/stats (task 10B). Points are in halves.
+export interface Tally {
+  n: number;
+  right: number;
+  exact: number;
+}
+
+export interface Stats {
+  keep: number; // days of stored picks behind byPick
+  half: number; // days in each of recent / previous
+  recent: Tally;
+  previous: Tally;
+  byPick: Record<string, { n: number; right: number }>;
+  streak: number;
+  months: { m: string; h: number }[]; // last 12 months, oldest first
+  comps: { comp: string; h: number; exact: number }[]; // this season, most points first
+}

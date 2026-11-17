@@ -155,3 +155,39 @@ button.wide { width: 100%; margin-top: 12px; }
 .podium .places { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .podium .places div { font-weight: 700; border-top: 1px solid var(--line); padding-top: 8px; }
 .podium .places span { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+/* Me statistics (task 10B) */
+.muted { color: var(--muted); }
+.stats.three { grid-template-columns: 1fr 1fr 1fr; }
+.stats small { color: var(--muted); }
+.chart { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-top: 12px; }
+.chart h3 { margin: 0 0 10px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.chart h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; text-align: right; }
+.chart .muted { margin: 4px 0; }
+.ring { display: flex; align-items: center; gap: 16px; }
+.ring .track { fill: none; stroke: var(--line); stroke-width: 10; }
+.ring .arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
+.ring text { fill: var(--text); font-size: 22px; font-weight: 800; }
+.ring .up { color: var(--accent); }
+.ring .down { color: var(--danger); }
+.rbar { margin: 8px 0 12px; }
+.rbar > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.segs { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; }
+.segs i, .k { background: #5b6f64; }
+.segs i.ex, .k.ex { background: var(--gold); }
+.segs i.ok, .k.ok { background: var(--accent); }
+.rbar small { display: block; margin-top: 4px; font-size: 13px; }
+.k { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 8px; vertical-align: -1px; }
+.k:first-child { margin-left: 0; }
+.hbar { display: grid; grid-template-columns: 40px 1fr 64px; gap: 10px; align-items: center; padding: 4px 0; }
+.hbar.comp { grid-template-columns: 112px 1fr 64px; }
+.hbar.comp .pk { white-space: normal; line-height: 1.2; }
+.hbar .pk { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar .track { height: 10px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.hbar .track i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.hbar .val { text-align: right; font-weight: 800; }
+.hbar .val small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+.months { width: 100%; height: auto; display: block; }
+.months .bar { fill: var(--accent); opacity: .55; }
+.months .best { fill: var(--gold); }
+.months text { font-size: 10px; fill: var(--muted); }
+.months text.v { fill: var(--text); font-weight: 700; }
