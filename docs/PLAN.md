@@ -26,8 +26,8 @@ will be new at the Play release, so nothing needs to stay compatible with older 
 | 8 | Owner's phone test (APK from GitHub Actions) | medium | ✅ done (owner) |
 | 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
 | 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (permission asked at first open), © Connect AL in About | medium | ✅ done (pull request) |
-| 10C | Groups: one competition or all, optional end date, admin concludes, podium | high | next |
-| 10B | Me: statistics and charts | medium | — |
+| 10C | Groups: one competition per group, rounds end with the season or when the admin concludes, podium | high | ✅ done (pull request; owner runs `worker/migrations/2026-11-16-task-10c.sql` before the merge) |
+| 10B | Me: statistics and charts | medium | next |
 | 10D | Team crests on matches, competition emblems | medium | — |
 
 ---
@@ -292,3 +292,5 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-10-25 | Task 7 (owner): first import and web version checked by the owner. 7b approved: competition filter, team search, "3rd · 2.1 pts/game" from the daily standings (`team_stats`; daily job fetches up to 8 tables: competitions with new matches first). No betting odds (paid add-on, ties the app to betting) and no news feed (licence risk with ads). |
 | 2026-11-16 | Owner approved v1.2: Settings tab (gear) with a working Match reminders switch (10A); groups for one competition or all, only that competition's picks count, optional end date, admin concludes, podium (10C); Me statistics and charts (10B); team crests and competition emblems (10D): **replaces the 2026-10-25 "no club crests" decision**, owner checked Play. Order A → C → B → D. |
 | 2026-11-16 | Owner: the app is not published yet (test builds only). Notification permission is asked at the first app open; allowing it turns Match reminders on, and the switch in Settings turns it off. About: © 2026 Connect AL. |
+| 2026-11-17 | Task 10C (owner approved 2026-11-16): every group is for **one competition** (no "all competitions" groups). A round's table counts only that competition's points, from the **day after** the round starts or the member joins (whichever is later), so nobody brings earlier points; the end is the same for all. Rounds end by themselves when the season is over (football-data.org season end date, all its matches settled) or earlier when the admin taps Conclude; final table frozen, podium shown; the admin starts a new round (same members and competition). If the admin leaves, the member who joined first becomes admin. Points per user, competition and day (`comp_points`) written at settlement, kept 400 days. Test groups deleted by a one-time script (`worker/migrations/2026-11-16-task-10c.sql`). |
+| 2026-11-17 | Owner moved the Worker and the D1 database `called-it` to a new Cloudflare account (export, import, new database id `cc73a259-f281-4c99-814c-9a194ef3e029`); the old Worker and database were deleted from the old account. GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are the new account's. New Worker address: `https://called-it.morenmirdita.workers.dev` (`API_BASE`, `LIVE_API`); replaces the 2026-10-25 `API_BASE` entry. |

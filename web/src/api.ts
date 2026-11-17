@@ -43,6 +43,15 @@ export interface GroupInfo {
   name: string;
   code: string;
   n: number;
+  comp: string; // every group is for one competition
+  done: number; // 0 while the round runs, else the time it was concluded
+}
+
+export interface GroupDetail extends GroupInfo {
+  round: number;
+  started: number;
+  end_day: string | null; // last day counted, once concluded
+  admin: boolean;
 }
 
 export interface Home {
@@ -63,7 +72,7 @@ export interface BoardRow {
 }
 
 export interface GroupData {
-  group: GroupInfo;
+  group: GroupDetail;
   board: BoardRow[];
   reveal: (SavedPick & { nick: string })[];
 }

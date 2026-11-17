@@ -53,12 +53,35 @@ CREATE TABLE IF NOT EXISTS predictions (
   PRIMARY KEY (match_id, user_id)
 ) WITHOUT ROWID;
 
+-- Every group is for one competition (task 10C). A round runs from started (ms) until it is concluded:
+-- done = 0 while running, else the time it was concluded; end_day = last UTC day counted.
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT NOT NULL UNIQUE,
   owner_id TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  comp TEXT NOT NULL,
+  round INTEGER NOT NULL DEFAULT 1,
+  started INTEGER NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,
+  end_day TEXT
+);
+
+-- Frozen final table of a group's last concluded round (≤ 50 rows per group).
+CREATE TABLE IF NOT EXISTS group_results (
+  group_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  h INTEGER NOT NULL,
+  exact INTEGER NOT NULL,
+  PRIMARY KEY (group_id, user_id)
+) WITHOUT ROWID;
+
+-- Current season of each competition (from football-data.org), so rounds can end by themselves.
+CREATE TABLE IF NOT EXISTS seasons (
+  comp TEXT PRIMARY KEY,
+  start_day TEXT NOT NULL,
+  end_day TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS members (
@@ -75,6 +98,16 @@ CREATE TABLE IF NOT EXISTS daily_points (
   h INTEGER NOT NULL,
   exact INTEGER NOT NULL,
   PRIMARY KEY (user_id, day)
+) WITHOUT ROWID;
+
+-- Points per user, competition and day (group tables, task 10C). Kept as long as daily_points.
+CREATE TABLE IF NOT EXISTS comp_points (
+  user_id TEXT NOT NULL,
+  comp TEXT NOT NULL,
+  day TEXT NOT NULL,
+  h INTEGER NOT NULL,
+  exact INTEGER NOT NULL,
+  PRIMARY KEY (user_id, comp, day)
 ) WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS meta (

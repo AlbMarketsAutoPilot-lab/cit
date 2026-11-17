@@ -1,6 +1,8 @@
 // The two cron jobs (PLAN §3, §6): hourly results + settlement, daily import + reminder + cleanup.
-import { dayOf, isPick, pointsTable, probabilities, score, type PointsTable } from '../../shared/scoring.ts';
+import { dayOf, pointsTable, probabilities, settlementSums, type PointsTable } from '../../shared/scoring.ts';
 import { DAY, type Env } from './env.ts';
+import { concludeDue } from './rounds.ts';
+import { NEW_ADMIN_SQL } from '../../shared/groups.ts';
 
 const API = 'https://api.football-data.org/v4';
 export const COMPETITIONS = ['CL', 'PL', 'ELC', 'PD', 'SA', 'BL1', 'FL1', 'DED', 'PPL', 'BSA', 'WC', 'EC'];
@@ -20,16 +22,23 @@ interface FdMatch {
   utcDate: string;
   status: string;
   competition: { code: string };
+  season?: FdSeason | null;
   homeTeam: FdTeam;
   awayTeam: FdTeam;
   score: { duration?: string; fullTime?: FdGoals; regularTime?: FdGoals };
 }
+interface FdSeason {
+  startDate?: string | null;
+  endDate?: string | null;
+}
 interface FdStandings {
+  season?: FdSeason | null;
   standings?: { type: string; table: { position: number; team: FdTeam; playedGames: number; points: number }[] }[];
 }
 
 export interface MatchRow {
   id: number;
+  comp: string;
   kickoff: number;
   hg: number | null;
   ag: number | null;
@@ -131,7 +140,7 @@ export async function settle(env: Env, now: number): Promise<number> {
   const ms = (
     await db
       .prepare(
-        `SELECT id, kickoff, hg, ag, h1, hx, h2, h1x, hx2, h12 FROM matches
+        `SELECT id, comp, kickoff, hg, ag, h1, hx, h2, h1x, hx2, h12 FROM matches
          WHERE settled = 0 AND status = 'FINISHED' AND hg IS NOT NULL AND ag IS NOT NULL ORDER BY kickoff LIMIT 20`,
       )
       .all<MatchRow>()
@@ -144,21 +153,11 @@ export async function settle(env: Env, now: number): Promise<number> {
       .bind(ids)
       .all<PredRow>()
   ).results;
-  const byId = new Map(ms.map((m) => [m.id, m]));
-  const sums = new Map<string, { u: string; d: string; h: number; e: number }>();
-  for (const p of preds) {
-    const m = byId.get(p.match_id);
-    if (!m || m.hg === null || m.ag === null || !isPick(p.pick)) continue;
-    const s = score(tableOf(m), p.pick, p.sh, p.sa, m.hg, m.ag);
-    if (s.halves === 0) continue; // zero rows are not written; boards treat missing as 0
-    const d = dayOf(m.kickoff);
-    const key = `${p.user_id}|${d}`;
-    const cur = sums.get(key) ?? { u: p.user_id, d, h: 0, e: 0 };
-    cur.h += s.halves;
-    cur.e += s.exact ? 1 : 0;
-    sums.set(key, cur);
-  }
-  const rows = JSON.stringify([...sums.values()]);
+  const sums = settlementSums(
+    ms.map((m) => ({ id: m.id, comp: m.comp, kickoff: m.kickoff, hg: m.hg!, ag: m.ag!, table: tableOf(m) })),
+    preds,
+  );
+  const rows = JSON.stringify(sums.daily);
   await db.batch([
     db
       .prepare(
@@ -168,6 +167,15 @@ export async function settle(env: Env, now: number): Promise<number> {
          ON CONFLICT (user_id, day) DO UPDATE SET h = h + excluded.h, exact = exact + excluded.exact`,
       )
       .bind(rows),
+    db
+      .prepare(
+        `INSERT INTO comp_points (user_id, comp, day, h, exact)
+         SELECT json_extract(value, '$.u'), json_extract(value, '$.c'), json_extract(value, '$.d'),
+           json_extract(value, '$.h'), json_extract(value, '$.e')
+         FROM json_each(?1) WHERE true
+         ON CONFLICT (user_id, comp, day) DO UPDATE SET h = h + excluded.h, exact = exact + excluded.exact`,
+      )
+      .bind(JSON.stringify(sums.comp)),
     db
       .prepare(
         `UPDATE users SET total_h = total_h + t.h, exact_n = exact_n + t.e
@@ -200,6 +208,11 @@ export async function daily(env: Env): Promise<void> {
     console.log('daily import', String(e));
   }
   try {
+    console.log('rounds concluded', await concludeDue(env.DB, now));
+  } catch (e) {
+    console.log('rounds', String(e));
+  }
+  try {
     await remind(env, now);
   } catch (e) {
     console.log('reminder', String(e));
@@ -221,10 +234,18 @@ async function importWeek(env: Env, now: number): Promise<void> {
   const fresh = list.filter((m) => !known.has(m.id)).map((m) => m.competition.code);
   const comps = [...new Set([...fresh, ...list.map((m) => m.competition.code)])].slice(0, 8);
   const ppg = new Map<string, number>();
+  // Season dates per competition (rounds end with the season): from the matches, then the standings.
+  const seasons = new Map<string, { comp: string; start: string; end: string }>();
+  const season = (comp: string, s: FdSeason | null | undefined) => {
+    const ok = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (s && ok(s.startDate) && ok(s.endDate)) seasons.set(comp, { comp, start: s.startDate, end: s.endDate });
+  };
+  for (const m of list) season(m.competition.code, m.season);
   const stats: { comp: string; team: string; pos: number; ppg: number }[] = [];
   for (const c of comps) {
     try {
       const s = await fd<FdStandings>(env, `/competitions/${c}/standings`);
+      season(c, s.season);
       for (const st of s.standings ?? []) {
         if (st.type !== 'TOTAL') continue;
         for (const row of st.table ?? []) {
@@ -248,6 +269,16 @@ async function importWeek(env: Env, now: number): Promise<void> {
        ON CONFLICT (comp, team) DO UPDATE SET pos = excluded.pos, ppg = excluded.ppg`,
     )
       .bind(JSON.stringify(stats))
+      .run();
+  }
+  if (seasons.size) {
+    await env.DB.prepare(
+      `INSERT INTO seasons (comp, start_day, end_day)
+       SELECT json_extract(value, '$.comp'), json_extract(value, '$.start'), json_extract(value, '$.end')
+       FROM json_each(?1) WHERE true
+       ON CONFLICT (comp) DO UPDATE SET start_day = excluded.start_day, end_day = excluded.end_day`,
+    )
+      .bind(JSON.stringify([...seasons.values()]))
       .run();
   }
   await env.DB.prepare(`INSERT OR REPLACE INTO meta (k, v) VALUES ('last_import', ?1)`).bind(new Date(now).toISOString()).run();
@@ -292,9 +323,13 @@ async function cleanup(env: Env, now: number): Promise<void> {
     db.prepare(`DELETE FROM predictions WHERE match_id IN (SELECT id FROM matches WHERE kickoff < ?1 AND settled != 0)`).bind(cut),
     db.prepare(`DELETE FROM matches WHERE kickoff < ?1 AND settled != 0`).bind(cut),
     db.prepare(`DELETE FROM daily_points WHERE day < ?1`).bind(dayOf(now - 400 * DAY)),
+    db.prepare(`DELETE FROM comp_points WHERE day < ?1`).bind(dayOf(now - 400 * DAY)),
     db.prepare(`DELETE FROM users WHERE last_seen < ?1`).bind(inactive),
     db.prepare(`DELETE FROM members WHERE user_id NOT IN (SELECT id FROM users)`),
+    db.prepare(`DELETE FROM comp_points WHERE user_id NOT IN (SELECT id FROM users)`),
     db.prepare(`DELETE FROM groups WHERE id NOT IN (SELECT group_id FROM members)`),
+    db.prepare(`DELETE FROM group_results WHERE group_id NOT IN (SELECT id FROM groups) OR user_id NOT IN (SELECT id FROM users)`),
+    db.prepare(NEW_ADMIN_SQL),
     db.prepare(`INSERT OR REPLACE INTO meta (k, v) VALUES ('tier', ?1), ('db_size', ?2)`).bind(String(tier), String(size)),
   ]);
   console.log('cleanup tier', tier, 'size', size);
