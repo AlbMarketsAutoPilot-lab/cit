@@ -13,7 +13,7 @@ Read first (strict)
   answer only what I ask; short plain answers, one recommendation; verify in the code, the project documents or
   Google's own pages (checked today, with the link), never guess. Every approval goes into docs/PLAN.md in the
   same commit as the work.
-- docs/PLAN.md: status table, §1 fixed decisions (app id com.calledit.app, upright only, Android 8.0+, AdMob
+- docs/PLAN.md: status table, §1 fixed decisions (app id com.connectal.calledit, upright only, Android 8.0+, AdMob
   banner with UMP consent, OneSignal push, signing as in KAJ), §7 screens and v1.2 details, §9 step 6, §10 owner
   checklist (items 8 and 9), decision log.
 - android/ (app/build.gradle.kts: versionCode, versionName, local.properties, release build; AndroidManifest:
