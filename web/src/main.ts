@@ -12,6 +12,7 @@ import {
   type Home,
   type Match,
   type SavedPick,
+  type Stats,
 } from './api.ts';
 
 declare const WEB_URL: string;
@@ -67,6 +68,7 @@ const state = {
   group: null as GroupData | null,
   period: 'total' as Period,
   history: null as HistoryRow[] | null,
+  stats: null as Stats | 'error' | null,
   modal: '' as string,
   busy: false,
   welcome: 'start' as 'start' | 'recover',
@@ -534,9 +536,120 @@ function meView(): string {
           .join('')
       : '<li class="empty">No picks in the last 30 days.</li>'
     : '<li class="empty"><span class="spin small"></span> Loading…</li>';
+  const st = state.stats && state.stats !== 'error' ? state.stats : null;
+  const streak = st ? String(st.streak) : '–';
   return `<h2>${esc(h.me.nick)}</h2>
-    <div class="stats"><div><b>${formatHalves(h.me.total)}</b><small>points</small></div><div><b>${h.me.exact}</b><small>exact scores</small></div></div>
+    <div class="stats three"><div><b>${formatHalves(h.me.total)}</b><small>points</small></div><div><b>${h.me.exact}</b><small>exact scores</small></div><div><b>${streak}</b><small>right in a row</small></div></div>
+    ${statsView()}
     <h3>Last 30 days</h3><ul class="history">${rows}</ul>`;
+}
+
+// ---------- Me statistics (task 10B): SVG drawn here, no chart library ----------
+
+const pct = (a: number, n: number) => (n ? Math.round((100 * a) / n) : 0);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function statsView(): string {
+  const st = state.stats;
+  if (st === null) return '<p class="muted"><span class="spin small"></span> Loading statistics…</p>';
+  if (st === 'error') return '<p class="muted">Statistics are unavailable right now.</p>';
+  return [ringCard(st), resultsCard(st), pickTypesCard(st), monthsCard(st), compsCard(st)].join('');
+}
+
+function card(title: string, sub: string, body: string): string {
+  return `<section class="chart"><h3>${esc(title)}<small>${esc(sub)}</small></h3>${body}</section>`;
+}
+
+function ringCard(st: Stats): string {
+  const r = st.recent;
+  const sub = `Last ${st.half} days`;
+  if (!r.n) return card('Hit rate', sub, '<p class="muted">No settled picks yet.</p>');
+  const rate = pct(r.right, r.n);
+  const C = 2 * Math.PI * 42;
+  let change = '';
+  if (st.previous.n) {
+    const d = rate - pct(st.previous.right, st.previous.n);
+    change = `<span class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}% vs the ${st.half} days before</span>`;
+  }
+  return card(
+    'Hit rate',
+    sub,
+    `<div class="ring"><svg viewBox="0 0 100 100" width="120" height="120" role="img" aria-label="${rate}% of picks right">
+      <circle cx="50" cy="50" r="42" class="track"/>
+      <circle cx="50" cy="50" r="42" class="arc" stroke-dasharray="${((C * rate) / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 50 50)"/>
+      <text x="50" y="57" text-anchor="middle">${rate}%</text></svg>
+      <div><b>${r.right} of ${r.n}</b> picks right${change ? `<br>${change}` : ''}</div></div>`,
+  );
+}
+
+function resultsCard(st: Stats): string {
+  const bar = (label: string, t: Stats['recent']) => {
+    if (!t.n) return `<div class="rbar"><span>${esc(label)}</span><div class="muted">No settled picks</div></div>`;
+    const seg = (n: number, cls: string, name: string) =>
+      n ? `<i class="${cls}" style="flex:${n}" title="${name}: ${n}"></i>` : '';
+    const right = t.right - t.exact;
+    const wrong = t.n - t.right;
+    return `<div class="rbar"><span>${esc(label)}</span><div class="segs">${seg(t.exact, 'ex', 'Exact')}${seg(right, 'ok', 'Right')}${seg(wrong, 'no', 'Wrong')}</div>
+      <small><b class="k ex"></b>${t.exact} exact <b class="k ok"></b>${right} right <b class="k no"></b>${wrong} wrong</small></div>`;
+  };
+  return card(
+    'Results',
+    'Exact score / right / wrong',
+    bar(`Last ${st.half} days`, st.recent) + bar(`${st.half} days before`, st.previous),
+  );
+}
+
+function pickTypesCard(st: Stats): string {
+  const rows = PICK_ORDER.map((p) => {
+    const b = st.byPick[p] ?? { n: 0, right: 0 };
+    const rate = pct(b.right, b.n);
+    return `<div class="hbar" title="${p}: ${b.right} of ${b.n} right"><span class="pk">${p}</span>
+      <div class="track"><i style="width:${b.right ? Math.max(rate, 2) : 0}%"></i></div>
+      <span class="val">${b.n ? `${rate}%` : '–'}<small>${b.right}/${b.n}</small></span></div>`;
+  }).join('');
+  return card('Best pick types', `Hit rate · last ${st.keep} days`, rows);
+}
+
+function monthsCard(st: Stats): string {
+  const max = Math.max(0, ...st.months.map((m) => m.h));
+  if (!max) return card('Points per month', 'Last 12 months', '<p class="muted">No points yet.</p>');
+  const best = st.months.reduce((a, b) => (b.h > a.h ? b : a));
+  const W = 300;
+  const H = 120;
+  const slot = W / st.months.length;
+  const bars = st.months
+    .map((m, i) => {
+      const h = Math.round(((H - 34) * m.h) / max);
+      const x = i * slot + 3;
+      const name = MONTHS[Number(m.m.slice(5)) - 1];
+      const isBest = m === best;
+      return `<g><title>${name} ${m.m.slice(0, 4)}: ${formatHalves(m.h)} pts</title>
+        <rect x="${i * slot}" y="0" width="${slot}" height="${H}" fill="transparent"/>
+        ${m.h ? `<rect class="${isBest ? 'best' : 'bar'}" x="${x.toFixed(1)}" y="${H - 16 - h}" width="${(slot - 6).toFixed(1)}" height="${h}" rx="3"/>` : ''}
+        ${isBest ? `<text class="v" x="${(x + (slot - 6) / 2).toFixed(1)}" y="${H - 20 - h}" text-anchor="middle">${formatHalves(m.h)}</text>` : ''}
+        <text class="m" x="${(x + (slot - 6) / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle">${name[0]}</text></g>`;
+    })
+    .join('');
+  const bm = `${MONTHS[Number(best.m.slice(5)) - 1]} ${best.m.slice(0, 4)}`;
+  return card(
+    'Points per month',
+    `Best: ${bm}`,
+    `<svg class="months" viewBox="0 0 ${W} ${H}" role="img" aria-label="Points per month, best ${bm} with ${formatHalves(best.h)} points">${bars}</svg>`,
+  );
+}
+
+function compsCard(st: Stats): string {
+  if (!st.comps.length) return card('By competition', 'This season', '<p class="muted">No points yet.</p>');
+  const max = st.comps[0].h;
+  const rows = st.comps
+    .map(
+      (c) => `<div class="hbar comp" title="${esc(COMPS[c.comp] ?? c.comp)}: ${formatHalves(c.h)} pts, ${c.exact} exact">
+        <span class="pk">${esc(COMPS[c.comp] ?? c.comp)}</span>
+        <div class="track"><i style="width:${Math.max((100 * c.h) / max, 2)}%"></i></div>
+        <span class="val">${formatHalves(c.h)}<small>pts</small></span></div>`,
+    )
+    .join('');
+  return card('By competition', 'Points this season', rows);
 }
 
 const GEAR =
@@ -615,7 +728,12 @@ async function act(el: HTMLElement): Promise<void> {
       state.group = null;
       if (state.tab === 'me') {
         render();
+        const stats = api<Stats>(state.auth, 'GET', '/v1/stats').then(
+          (s) => (state.stats = s),
+          () => (state.stats = state.stats && state.stats !== 'error' ? state.stats : 'error'),
+        );
         state.history = (await api<{ rows: HistoryRow[] }>(state.auth, 'GET', '/v1/history')).rows;
+        await stats;
       }
       break;
     case 'day':

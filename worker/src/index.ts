@@ -1,6 +1,7 @@
 // Called It! API (PLAN §5). Bearer auth with a random key per device; no cookies, so CORS is open.
 import { NEW_ADMIN_SQL } from '../../shared/groups.ts';
 import { dayOf, isGoals, isPick, validScore } from '../../shared/scoring.ts';
+import { keepDays, lastMonths, monthSeries, pickStats, type StatPick } from '../../shared/stats.ts';
 import { DAY, type Env } from './env.ts';
 import { COMPETITIONS, daily, hourly } from './jobs.ts';
 import { concludeRound, roundTable } from './rounds.ts';
@@ -221,6 +222,43 @@ async function history(env: Env, me: User) {
   return { rows };
 }
 
+// Me statistics (task 10B): picks still stored (60 days at tier 0), months and seasons from the 400-day totals.
+async function stats(env: Env, me: User) {
+  const now = Date.now();
+  const db = env.DB;
+  const tier = await db.prepare(`SELECT v FROM meta WHERE k = 'tier'`).first<{ v: string }>();
+  const keep = keepDays(Number(tier?.v ?? 0));
+  const [picks, months, comps] = await db.batch([
+    db
+      .prepare(
+        `SELECT m.kickoff, m.hg, m.ag, p.pick, p.sh, p.sa
+         FROM matches AS m JOIN predictions AS p ON p.match_id = m.id AND p.user_id = ?1
+         WHERE m.settled = 1 AND m.kickoff >= ?2 AND m.kickoff <= ?3`,
+      )
+      .bind(me.id, now - keep * DAY, now),
+    db
+      .prepare(
+        `SELECT substr(day, 1, 7) AS m, SUM(h) AS h FROM daily_points
+         WHERE user_id = ?1 AND day >= ?2 GROUP BY m`,
+      )
+      .bind(me.id, `${lastMonths(now)[0]}-01`),
+    // This season per competition (football-data.org dates); competitions without a stored season: last 365 days.
+    db
+      .prepare(
+        `SELECT c.comp, SUM(c.h) AS h, SUM(c.exact) AS exact
+         FROM comp_points AS c LEFT JOIN seasons AS s ON s.comp = c.comp
+         WHERE c.user_id = ?1 AND c.day >= COALESCE(s.start_day, ?2) AND c.day <= COALESCE(s.end_day, '9999-12-31')
+         GROUP BY c.comp HAVING SUM(c.h) > 0 ORDER BY SUM(c.h) DESC, c.comp`,
+      )
+      .bind(me.id, dayOf(now - 365 * DAY)),
+  ]);
+  return {
+    ...pickStats(picks.results as unknown as StatPick[], now, keep),
+    months: monthSeries(months.results as { m: string; h: number }[], now),
+    comps: comps.results as { comp: string; h: number; exact: number }[],
+  };
+}
+
 async function deleteMe(env: Env, me: User) {
   const groups = (await myGroups(env, me)).map((g) => (g as { id: string }).id);
   const db = env.DB;
@@ -422,6 +460,7 @@ async function route(req: Request, env: Env): Promise<Response> {
   if (method === 'GET' && path === '/v1/home') return json(await home(env, me));
   if (method === 'PUT' && path === '/v1/predictions') return json(await savePicks(env, me, await body(req)));
   if (method === 'GET' && path === '/v1/history') return json(await history(env, me));
+  if (method === 'GET' && path === '/v1/stats') return json(await stats(env, me));
   if (method === 'DELETE' && path === '/v1/me') return json(await deleteMe(env, me));
   if (method === 'POST' && path === '/v1/groups') return json(await createGroup(env, me, await body(req)));
   if (method === 'POST' && path === '/v1/groups/join') return json(await joinGroup(env, me, await body(req)));

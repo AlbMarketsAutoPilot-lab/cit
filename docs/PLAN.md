@@ -27,8 +27,8 @@ will be new at the Play release, so nothing needs to stay compatible with older 
 | 9 | Signed AAB in Android Studio, Play Console, closed test | medium | — |
 | 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (permission asked at first open), © Connect AL in About | medium | ✅ done (pull request) |
 | 10C | Groups: one competition per group, rounds end with the season or when the admin concludes, podium | high | ✅ done (pull request; owner runs `worker/migrations/2026-11-16-task-10c.sql` before the merge) |
-| 10B | Me: statistics and charts | medium | next |
-| 10D | Team crests on matches, competition emblems | medium | — |
+| 10B | Me: statistics and charts | medium | ✅ done (pull request) |
+| 10D | Team crests on matches, competition emblems | medium | next |
 
 ---
 
@@ -145,6 +145,7 @@ user/day → upsert `daily_points`, add to `users.total_h`, set `matches.settled
 | `GET /home` | **one call on app open**: me, matches today..+7, my picks, my groups |
 | `PUT /predictions [{match, pick, sh, sa}]` | save many picks in one request; rejected after kickoff |
 | `GET /history?from&to` | my settled picks with points |
+| `GET /stats` | Me statistics (10B): hit rate, results, pick types, streak (stored picks); points per month, per competition this season (400-day totals). Read-only |
 | `POST /groups {name}` · `POST /groups/join {code}` · `DELETE /groups/:id/me` | groups |
 | `GET /groups/:id` | one call: week, month and all-time board + everyone's picks on matches that **already started** (the reveal) |
 
@@ -251,6 +252,19 @@ Before building, check which items the stored data supports for how long: predic
 after 60 days (fewer at higher cleanup tiers, §6); `daily_points` and `comp_points` keep 400 days. Propose what
 each chart covers (for example "last 60 days") to the owner.
 
+**10B as built (owner approved 2026-11-17; item 8 "My groups" dropped).** One read-only call `GET /v1/stats`
+when Me opens (`shared/stats.ts`, `worker/src/index.ts` `stats`). Me shows:
+- Tiles: points, exact scores, **right in a row** (current streak, from the stored picks).
+- **Hit rate ring:** last 30 days, with the change vs the 30 days before.
+- **Results bar:** exact / right / wrong, last 30 days and the 30 days before.
+- **Best pick types:** hit rate for 1, X, 2, 1X, X2, 12 over the last 60 days.
+- **Points per month:** last 12 months, best month in gold (`daily_points`).
+- **By competition:** points this season (`comp_points`, season dates from `seasons`; no stored season: last 365 days).
+- The 30-day pick list stays below.
+Periods follow the cleanup tier: picks kept 60/30/14/7 days → comparison periods of 30/15/7/3 days, labels show
+the real number of days. Rolling periods, not calendar months (a calendar "last month" can reach past 60 days).
+Cost at 1,000 players: 0 rows written, ≈ +0.8 M rows read/day (estimate from the queries), no schema change.
+
 **10C Groups (done, pull request #6):** see the decision log (2026-11-17) and §4, §5.
 
 **10D Team and competition icons.** Team crests on the match cards and competition emblems on the competition
@@ -327,3 +341,4 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-11-16 | Owner: the app is not published yet (test builds only). Notification permission is asked at the first app open; allowing it turns Match reminders on, and the switch in Settings turns it off. About: © 2026 Connect AL. |
 | 2026-11-17 | Task 10C (owner approved 2026-11-16): every group is for **one competition** (no "all competitions" groups). A round's table counts only that competition's points, from the **day after** the round starts or the member joins (whichever is later), so nobody brings earlier points; the end is the same for all. Rounds end by themselves when the season is over (football-data.org season end date, all its matches settled) or earlier when the admin taps Conclude; final table frozen, podium shown; the admin starts a new round (same members and competition). If the admin leaves, the member who joined first becomes admin. Points per user, competition and day (`comp_points`) written at settlement, kept 400 days. Test groups deleted by a one-time script (`worker/migrations/2026-11-16-task-10c.sql`). |
 | 2026-11-17 | Owner moved the Worker and the D1 database `called-it` to a new Cloudflare account (export, import, new database id `cc73a259-f281-4c99-814c-9a194ef3e029`); the old Worker and database were deleted from the old account. GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are the new account's. New Worker address: `https://called-it.morenmirdita.workers.dev` (`API_BASE`, `LIVE_API`); replaces the 2026-10-25 `API_BASE` entry. |
+| 2026-11-17 | Task 10B (owner approved): Me statistics as listed in §7 "10B as built": streak tile, hit rate ring, results bar, pick types (stored picks, 60 days at tier 0) and points per month, points per competition this season (400-day totals). Read-only, no schema or settlement change, 60-day pick cleanup unchanged. Not chosen: keeping picks 400 days (≈ 3–5 M reads/day at 1,000 players, lost again when the cleanup tiers start) and per-season counters. Item 8 (rank in my groups) dropped by the owner. No player cap added: the free plan stops at its limits (no bill), existing hard stops stay (§5, §6). |
