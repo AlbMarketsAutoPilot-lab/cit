@@ -14,6 +14,8 @@ export interface Match {
   kickoff: number;
   home: string;
   away: string;
+  hc?: string | null; // team crest links (football-data.org), null when unknown
+  ac?: string | null;
   status: string;
   hg: number | null;
   ag: number | null;
@@ -58,6 +60,7 @@ export interface Home {
   now: number;
   me: { id: string; nick: string; total: number; exact: number };
   matches: Match[];
+  emblems?: Record<string, string>; // competition code → emblem link (task 10D)
   picks: SavedPick[];
   groups: GroupInfo[];
 }

@@ -28,7 +28,7 @@ will be new at the Play release, so nothing needs to stay compatible with older 
 | 10A | Settings tab (gear): menu moved from Me; Match reminders On/Off switch (permission asked at first open), © Connect AL in About | medium | ✅ done (pull request) |
 | 10C | Groups: one competition per group, rounds end with the season or when the admin concludes, podium | high | ✅ done (pull request; owner runs `worker/migrations/2026-11-16-task-10c.sql` before the merge) |
 | 10B | Me: statistics and charts | medium | ✅ done (pull request) |
-| 10D | Team crests on matches, competition emblems | medium | next |
+| 10D | Team crests on matches, competition emblems | medium | ✅ done (pull request) |
 
 ---
 
@@ -273,6 +273,24 @@ Cost check (2026-11-16): €0 for Cloudflare, because the crest links are alread
 (`home_crest`, `away_crest`) and phones load the images straight from football-data.org; 9–32 KB per crest
 (measured), cached by the phone after the first view. Competition emblem links are not stored yet.
 
+**10D as built (owner approved 2026-11-17).**
+- **Where:** a 20 px team crest beside each team name on the match cards; an 18 px competition emblem on the
+  competition chips (not on "All"), on the competition headings of the match list, in the My groups list and on
+  the Group screen's competition line.
+- **Emblem links:** taken from `competition.emblem` of the matches the daily import already fetches (the
+  `crests.football-data.org/<code>.png` pattern fails for DED, BSA, WC, EC). Stored in one `meta` row
+  (`k = 'emblems'`, JSON competition code → link), merged and written only when a link changes
+  (`shared/icons.ts` `EMBLEMS_SQL`). `/home` returns `emblems`, inside the 5-minute cache. No schema change.
+- **Missing or failed image:** only plain `https://` links are used. No link or a failed load: a crest leaves an
+  empty slot (names stay aligned), an emblem is left out. Names are always shown.
+- **Look:** emblems sit on a small white rounded tile and crests have a faint light outline, so dark logos
+  (e.g. the Premier League emblem) stay visible on the dark background.
+- **Privacy policy:** "Team crests and competition emblems load from football-data.org, which sees your device's
+  IP address when they load." (Proxying the images through the Worker would use up the 100,000 requests/day.)
+- **Cost at 1,000 players:** usually 0 rows written a day (≤ 1 when an emblem changes); +1 row read per cache
+  refill; 0 extra Worker requests; 0 extra football-data.org API calls (images need no key); €0.
+- Emblems appear after the first daily import that follows the deploy. Android needs no change.
+
 ---
 
 ## 8. Repository layout
@@ -342,3 +360,4 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-11-17 | Task 10C (owner approved 2026-11-16): every group is for **one competition** (no "all competitions" groups). A round's table counts only that competition's points, from the **day after** the round starts or the member joins (whichever is later), so nobody brings earlier points; the end is the same for all. Rounds end by themselves when the season is over (football-data.org season end date, all its matches settled) or earlier when the admin taps Conclude; final table frozen, podium shown; the admin starts a new round (same members and competition). If the admin leaves, the member who joined first becomes admin. Points per user, competition and day (`comp_points`) written at settlement, kept 400 days. Test groups deleted by a one-time script (`worker/migrations/2026-11-16-task-10c.sql`). |
 | 2026-11-17 | Owner moved the Worker and the D1 database `called-it` to a new Cloudflare account (export, import, new database id `cc73a259-f281-4c99-814c-9a194ef3e029`); the old Worker and database were deleted from the old account. GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are the new account's. New Worker address: `https://called-it.morenmirdita.workers.dev` (`API_BASE`, `LIVE_API`); replaces the 2026-10-25 `API_BASE` entry. |
 | 2026-11-17 | Task 10B (owner approved): Me statistics as listed in §7 "10B as built": streak tile, hit rate ring, results bar, pick types (stored picks, 60 days at tier 0) and points per month, points per competition this season (400-day totals). Read-only, no schema or settlement change, 60-day pick cleanup unchanged. Not chosen: keeping picks 400 days (≈ 3–5 M reads/day at 1,000 players, lost again when the cleanup tiers start) and per-season counters. Item 8 (rank in my groups) dropped by the owner. No player cap added: the free plan stops at its limits (no bill), existing hard stops stay (§5, §6). |
+| 2026-11-17 | Task 10D (owner approved): team crests on match cards; competition emblems on the competition chips, match list headings, My groups list and Group screen, as in §7 "10D as built". Emblem links from the daily import's matches, stored in one `meta` row (no schema change); phones load images straight from football-data.org (€0). Missing or failed images: empty crest slot, emblem left out. White tile behind emblems and light outline on crests (owner approved). Privacy policy now says football-data.org sees the device's IP address when images load. |

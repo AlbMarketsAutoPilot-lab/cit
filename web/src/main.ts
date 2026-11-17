@@ -1,5 +1,6 @@
 // Called It! app: one page, three tabs (Matches, Groups, Me) plus Settings (gear). PLAN §7.
 import { rankTable } from '../../shared/groups.ts';
+import { iconUrl } from '../../shared/icons.ts';
 import { EXACT_BONUS, formatHalves, isPick, score, validScore, type Pick, type PointsTable } from '../../shared/scoring.ts';
 import {
   api,
@@ -47,6 +48,20 @@ const COMPS: Record<string, string> = {
   EC: 'European Championship',
 };
 const PICK_ORDER: Pick[] = ['1', 'X', '2', '1X', 'X2', '12'];
+
+// Team crests and competition emblems (task 10D), loaded straight from football-data.org.
+// A crest without a link (or that fails to load) leaves an empty slot, so names stay aligned.
+function crest(url: string | null | undefined): string {
+  const u = iconUrl(url);
+  return u
+    ? `<img class="ico crest" src="${esc(u)}" alt="" width="20" height="20" loading="lazy" decoding="async">`
+    : '<span class="ico crest"></span>';
+}
+// An emblem without a link (or that fails to load) is simply left out.
+function emblem(comp: string): string {
+  const u = iconUrl(state.home?.emblems?.[comp]);
+  return u ? `<img class="ico emb" src="${esc(u)}" alt="" width="16" height="16" loading="lazy" decoding="async">` : '';
+}
 
 type Tab = 'matches' | 'groups' | 'me' | 'settings';
 type Period = 'week' | 'month' | 'total';
@@ -357,7 +372,7 @@ function matchesView(): string {
   const comps = Object.keys(COMPS).filter((c) => home.matches.some((m) => m.comp === c));
   if (!comps.includes(state.comp)) state.comp = '';
   const compChip = (c: string, label: string) =>
-    `<button class="chip ${state.comp === c ? 'on' : ''}" data-act="comp" data-v="${c}">${esc(label)}</button>`;
+    `<button class="chip ${state.comp === c ? 'on' : ''}" data-act="comp" data-v="${c}">${c ? emblem(c) : ''}${esc(label)}</button>`;
   return `<input class="search" type="search" data-filter="team" placeholder="Search team" maxlength="30" autocomplete="off" value="${esc(state.team)}">
     <div class="chips" ${state.team ? 'hidden' : ''}>${chips}</div>
     ${comps.length > 1 ? `<div class="chips">${compChip('', 'All')}${comps.map((c) => compChip(c, COMPS[c])).join('')}</div>` : ''}
@@ -380,7 +395,7 @@ function matchList(): string {
     const h = (q ? `${dayLabel(localDay(m.kickoff))} · ` : '') + (COMPS[m.comp] ?? m.comp);
     if (h !== head) {
       head = h;
-      html += `<h3 class="comp">${esc(h)}</h3>`;
+      html += `<h3 class="comp">${emblem(m.comp)}<span>${esc(h)}</span></h3>`;
     }
     html += matchCard(m);
   }
@@ -416,7 +431,7 @@ function matchCard(m: Match): string {
     : `<div class="result">${saved ? `You: <b>${esc(saved.pick)}</b>${saved.sh !== null ? ` · ${saved.sh}–${saved.sa}` : ''}` : 'No pick'}
        <span class="res ${res.cls}">${esc(res.text)}</span></div>`;
   return `<article class="match ${open ? '' : 'locked'} ${state.drafts.has(m.id) ? 'dirty' : ''}">
-    <div class="teams"><span class="home">${esc(m.home)}${standing(m.hpos, m.hppg)}</span><span class="st">${esc(statusText(m))}</span><span class="away">${esc(m.away)}${standing(m.apos, m.appg)}</span></div>
+    <div class="teams"><span class="home">${crest(m.hc)}<span class="nm">${esc(m.home)}${standing(m.hpos, m.hppg)}</span></span><span class="st">${esc(statusText(m))}</span><span class="away">${crest(m.ac)}<span class="nm">${esc(m.away)}${standing(m.apos, m.appg)}</span></span></div>
     <div class="picks">${buttons}</div>${foot}</article>`;
 }
 
@@ -428,7 +443,7 @@ function groupsView(): string {
     ? groups
         .map(
           (x) =>
-            `<button class="row" data-act="group" data-v="${esc(x.id)}"><span>${esc(x.name)}<small class="sub">${esc(COMPS[x.comp] ?? x.comp)}${x.done ? ' · finished' : ''}</small></span><small>${x.n} ${x.n === 1 ? 'player' : 'players'}</small></button>`,
+            `<button class="row" data-act="group" data-v="${esc(x.id)}"><span>${esc(x.name)}<small class="sub">${emblem(x.comp)}${esc(COMPS[x.comp] ?? x.comp)}${x.done ? ' · finished' : ''}</small></span><small>${x.n} ${x.n === 1 ? 'player' : 'players'}</small></button>`,
         )
         .join('')
     : '<p class="empty">No groups yet. Create one and invite your friends, or join with a code.</p>';
@@ -449,7 +464,7 @@ function groupView(g: GroupData): string {
   const comp = COMPS[info.comp] ?? info.comp;
   const head = `<button class="link" data-act="back">‹ All groups</button>
     <h2>${esc(info.name)}</h2>
-    <p class="gsub">${esc(comp)} · Round ${info.round}${info.admin ? ' · you are the admin' : ''}</p>
+    <p class="gsub">${emblem(info.comp)}${esc(comp)} · Round ${info.round}${info.admin ? ' · you are the admin' : ''}</p>
     <div class="code">Code <b>${esc(info.code)}</b> · ${info.n} ${info.n === 1 ? 'player' : 'players'}
       <button class="primary" data-act="invite">Invite</button></div>`;
   const leave = '<button class="link danger" data-act="modal" data-v="leave">Leave group</button>';
@@ -826,6 +841,15 @@ async function act(el: HTMLElement): Promise<void> {
   }
   render();
 }
+
+// A crest or emblem that fails to load hides itself (error events do not bubble, so listen in capture).
+document.addEventListener(
+  'error',
+  (ev) => {
+    if (ev.target instanceof HTMLImageElement && ev.target.classList.contains('ico')) ev.target.classList.add('gone');
+  },
+  true,
+);
 
 document.addEventListener('click', (ev) => {
   const el = (ev.target as HTMLElement).closest<HTMLElement>('[data-act]');
