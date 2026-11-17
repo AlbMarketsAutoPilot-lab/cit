@@ -117,11 +117,7 @@ matches      (id INT PK, comp TEXT, kickoff INT, home TEXT, away TEXT, home_cres
               settled INT DEFAULT 0)
 predictions  (match_id INT, user_id TEXT, pick TEXT, sh INT, sa INT, edits INT DEFAULT 0,
               PRIMARY KEY (match_id, user_id)) WITHOUT ROWID   -- match first: settlement + reveal read ranges
-groups       (id TEXT PK, name TEXT, code TEXT UNIQUE, owner_id TEXT, created_at INT,
-              comp TEXT, round INT, started INT, done INT, end_day TEXT)   -- one competition, rounds (10C)
-group_results (group_id TEXT, user_id TEXT, h INT, exact INT, PK (group_id, user_id))  -- frozen last round
-comp_points  (user_id TEXT, comp TEXT, day TEXT, h INT, exact INT, PK (user_id, comp, day))  -- group tables
-seasons      (comp TEXT PK, start_day TEXT, end_day TEXT)   -- current season, from football-data.org
+groups       (id TEXT PK, name TEXT, code TEXT UNIQUE, owner_id TEXT, created_at INT)
 members      (group_id TEXT, user_id TEXT, joined_at INT, PRIMARY KEY (group_id, user_id)) WITHOUT ROWID
 daily_points (user_id TEXT, day TEXT, h INT, exact INT, PRIMARY KEY (user_id, day)) WITHOUT ROWID
 meta         (k TEXT PK, v TEXT)        -- settle_version, tier, db_size, last_import
@@ -149,9 +145,8 @@ user/day → upsert `daily_points`, add to `users.total_h`, set `matches.settled
 | `GET /home` | **one call on app open**: me, matches today..+7, my picks, my groups |
 | `PUT /predictions [{match, pick, sh, sa}]` | save many picks in one request; rejected after kickoff |
 | `GET /history?from&to` | my settled picks with points |
-| `POST /groups {name, comp}` · `POST /groups/join {code}` · `DELETE /groups/:id/me` | groups |
-| `POST /groups/:id/conclude` · `POST /groups/:id/round` | admin: end the round now · start the next round |
-| `GET /groups/:id` | one call: round / week / month table (or the frozen final table) + everyone's picks on this competition's matches that **already started** (the reveal) |
+| `POST /groups {name}` · `POST /groups/join {code}` · `DELETE /groups/:id/me` | groups |
+| `GET /groups/:id` | one call: week, month and all-time board + everyone's picks on matches that **already started** (the reveal) |
 
 Auth header: `Authorization: Bearer <id>.<key>`; server stores only SHA-256 hashes.
 CORS is open (`*`): auth is a bearer key and there are no cookies, so an origin check would add nothing.
@@ -187,7 +182,7 @@ Predictions are the only table that grows fast (~100 bytes/row with key).
 **Normal retention (Tier 0):**
 1. Delete predictions and matches whose kickoff is older than **60 days** (their points already live in
    `daily_points` and `users.total_h`, so tables and history totals stay correct).
-2. Delete `daily_points` and `comp_points` older than **400 days** (all-time total is already in `users.total_h`).
+2. Delete `daily_points` older than **400 days** (all-time total is already in `users.total_h`).
 3. Delete users not seen for **365 days** (with memberships); delete groups with no members.
 4. Void pending matches older than 7 days.
 
@@ -216,8 +211,7 @@ Safety net: D1 Time Travel (free, last 7 days) can restore the database to any m
    Filter by competition (chips) and **Search team** (all days). Under each team: "3rd · 2.1 pts/game"
    from the league table (free tier; no odds, no news — owner decision 2026-10-25).
 3. **Groups** — my groups; create; join by code; **Invite** opens Android share sheet / Web Share.
-4. **Group** — one competition. Table (This round / This week / This month); per match of that competition after
-   kickoff: how everyone picked (reveal). When the round ends: podium (cup + 1st, then 2nd and 3rd) and final table.
+4. **Group** — board (Week / Month / All time); per match after kickoff: how everyone picked (reveal).
 5. **Me** — history with points, total, recovery code, delete account, About (data: football-data.org).
 
 Language: English (worldwide audience). Team names as football-data.org gives them; team crests and competition emblems
@@ -230,7 +224,7 @@ user's own time zone. The app links the device to the user id (`OneSignal.login`
 Google UMP consent form for EEA/UK; "Ad privacy settings" in Me when required. Web version has no ads.
 
 **Not in MVP (v1.1, in this order):** results push ("your points are in") · banker (one ×2 match per day) ·
-shareable daily recap image · streaks (per-group competition: done in 10C).
+shareable daily recap image · per-group competition filter · streaks.
 
 ---
 
@@ -299,3 +293,4 @@ Dev dependencies only: `typescript`, `esbuild`, `wrangler`, `@cloudflare/workers
 | 2026-11-16 | Owner approved v1.2: Settings tab (gear) with a working Match reminders switch (10A); groups for one competition or all, only that competition's picks count, optional end date, admin concludes, podium (10C); Me statistics and charts (10B); team crests and competition emblems (10D): **replaces the 2026-10-25 "no club crests" decision**, owner checked Play. Order A → C → B → D. |
 | 2026-11-16 | Owner: the app is not published yet (test builds only). Notification permission is asked at the first app open; allowing it turns Match reminders on, and the switch in Settings turns it off. About: © 2026 Connect AL. |
 | 2026-11-17 | Task 10C (owner approved 2026-11-16): every group is for **one competition** (no "all competitions" groups). A round's table counts only that competition's points, from the **day after** the round starts or the member joins (whichever is later), so nobody brings earlier points; the end is the same for all. Rounds end by themselves when the season is over (football-data.org season end date, all its matches settled) or earlier when the admin taps Conclude; final table frozen, podium shown; the admin starts a new round (same members and competition). If the admin leaves, the member who joined first becomes admin. Points per user, competition and day (`comp_points`) written at settlement, kept 400 days. Test groups deleted by a one-time script (`worker/migrations/2026-11-16-task-10c.sql`). |
+| 2026-11-17 | Owner moved the Worker and the D1 database `called-it` to a new Cloudflare account (export, import, new database id `cc73a259-f281-4c99-814c-9a194ef3e029`); the old Worker and database were deleted from the old account. GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are the new account's. New Worker address: `https://called-it.morenmirdita.workers.dev` (`API_BASE`, `LIVE_API`); replaces the 2026-10-25 `API_BASE` entry. |
