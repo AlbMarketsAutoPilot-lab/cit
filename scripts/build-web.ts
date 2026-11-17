@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const read = (p: string) => readFileSync(new URL(p, root), 'utf8');
-const LIVE_API = 'https://called-it.lodovikmirdita.workers.dev';
+const LIVE_API = 'https://called-it.morenmirdita.workers.dev';
 const fallback = process.argv.includes('--live') ? LIVE_API : process.env.CI ? '' : 'http://localhost:8787';
 const apiBase = (process.env.API_BASE ?? '').replace(/\/+$/, '') || fallback;
 if (!apiBase) throw new Error('Set API_BASE (repository variable) to the Worker address, e.g. https://called-it.<name>.workers.dev');
